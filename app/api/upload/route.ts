@@ -69,20 +69,23 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer)
     const fileUri = `data:${file.type};base64,${buffer.toString('base64')}`
 
-    // Cloudinary-তে আপলোড করা হচ্ছে (resource_type: 'auto' দিলে ছবি, ভিডিও বা অডিও নিজ থেকেই ডিটেক্ট করে)
-    const result = await new Promise((resolve, reject) => {
+    // Cloudinary-তে আপলোড (১০০% Type-Safe Promise, যা বিল্ড এরর ব্লক করবে)
+    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
       cloudinary.uploader.upload(
         fileUri,
         {
           resource_type: 'auto',
-          folder: 'zihad_portfolio_media', // ক্লাউডিনারিতে এই নামে ফোল্ডার তৈরি হয়ে সেভ হবে
+          folder: 'zihad_portfolio_media',
         },
         (error, result) => {
-          if (error) reject(error)
-          else resolve(result)
+          if (error || !result) {
+            return reject(error || new Error('Upload failed: No result returned.'))
+          }
+          // টাইপস্ক্রিপ্ট এরর ১০০% বাইপাস করার জন্য Type Assertion ব্যবহার করা হলো
+          resolve(result as { secure_url: string })
         }
       )
-    }) as { secure_url: string }
+    })
 
     // সফলভাবে আপলোড হলে ক্লাউডের লাইভ URL রিটার্ন করা হবে
     return NextResponse.json({ success: true, url: result.secure_url }, { status: 201 })
