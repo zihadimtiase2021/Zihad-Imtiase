@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { isAuthenticated } from '@/lib/auth'
 
+// ডায়নামিক সেকশনের জন্য সম্পূর্ণ টাইপ ডিফাইন করা হচ্ছে (যাতে Vercel-এ কোনো TS Error না হয়)
 export interface DynamicSiteSettings {
   hero: {
     coverMedia: string
@@ -16,19 +17,10 @@ export interface DynamicSiteSettings {
   }
   about: {
     media: string[]
-    title: string
-    subtitle: string
-    introPara1: string
-    introPara2: string
-    location: string
-    joinDate: string
-    education: string
-    values: { title: string; desc: string }[]
-    stack: { name: string; level: number }[]
-    timeline: { year: string; title: string; place: string; desc: string }[]
   }
 }
 
+// ডিফল্ট ভ্যালু (ডেটাবেস খালি থাকলে সাইটে এগুলো শো করবে)
 const DEFAULT_SETTINGS: DynamicSiteSettings = {
   hero: {
     coverMedia: '',
@@ -45,37 +37,7 @@ const DEFAULT_SETTINGS: DynamicSiteSettings = {
       { value: '4+', label: 'Years' },
     ],
   },
-  about: {
-    media: [],
-    title: 'Zihad Imtiase',
-    subtitle: 'Frontend Developer & Webflow Specialist',
-    introPara1: 'I help startups, agencies, and growing businesses turn their ideas into high-performing websites. My focus is always the same: websites that look great and drive measurable results — more leads, more sign-ups, more revenue.',
-    introPara2: 'Based in Dhaka Cantonment, Bangladesh. Working with clients worldwide since March 2022. When I am not building, I am writing about frontend development and conversion optimisation.',
-    location: 'Dhaka Cantonment, Bangladesh',
-    joinDate: 'Joined March 2022',
-    education: 'Self-taught + Webflow Expert',
-    values: [
-      { title: 'Results over aesthetics', desc: 'Beautiful design that does not convert is decoration. Every choice I make has a purpose tied to the business goal.' },
-      { title: 'Communication first', desc: 'I send updates before clients ask. No surprises, no missed deadlines, no guessing.' },
-      { title: 'Craft in the details', desc: 'Pixel-perfect typography, 60 fps animations, sub-2s load times — the details are where trust is built.' },
-      { title: 'Long-term thinking', desc: 'I build codebases and design systems my clients can maintain and grow without coming back to me for every small change.' },
-    ],
-    stack: [
-      { name: 'React / Next.js', level: 95 },
-      { name: 'Webflow', level: 98 },
-      { name: 'TypeScript', level: 88 },
-      { name: 'TailwindCSS', level: 96 },
-      { name: 'Node.js', level: 75 },
-      { name: 'Figma', level: 82 },
-    ],
-    timeline: [
-      { year: '2024', title: 'Senior Frontend Developer', place: 'Freelance — Global clients', desc: 'Scaling conversion-focused websites for SaaS products, e-commerce brands, and service businesses across the US, UK, and Bangladesh.' },
-      { year: '2023', title: 'Webflow Expert Certification', place: 'Webflow University', desc: 'Achieved Webflow Expert status. Delivered 15+ Webflow projects ranging from marketing sites to complex CMS-driven platforms.' },
-      { year: '2022', title: 'Started Freelancing Full-Time', place: 'Remote', desc: 'Transitioned from agency work to full-time freelancing. Built first Webflow client project — a SaaS landing page that 3x-ed their trial signups.' },
-      { year: '2021', title: 'Frontend Developer', place: 'Web Agency, Dhaka', desc: 'Joined a Dhaka-based digital agency. Worked on React apps, responsive UIs, and performance optimisation for 10+ client projects.' },
-      { year: '2020', title: 'Self-taught Web Development', place: 'Home', desc: 'Started learning HTML, CSS, and JavaScript. Built first projects, fell in love with the craft, and never looked back.' },
-    ],
-  },
+  about: { media: [] },
 }
 
 async function readSettings(): Promise<DynamicSiteSettings> {
@@ -84,13 +46,23 @@ async function readSettings(): Promise<DynamicSiteSettings> {
     const collection = db.collection('settings')
     const doc = await collection.findOne({ _id: 'site_settings' as unknown as undefined })
 
-    if (!doc) return { ...DEFAULT_SETTINGS }
+    if (!doc) {
+      return { ...DEFAULT_SETTINGS }
+    }
 
     const { _id, ...rest } = doc
+    
+    // ডেটাবেসের ডেটার সাথে ডিফল্ট ডেটার ডিপ-মার্জিং (যেন কোনো ফিল্ড মিসিং থাকলে ডিফল্টটা লোড হয়)
     return {
       ...DEFAULT_SETTINGS,
-      hero: { ...DEFAULT_SETTINGS.hero, ...(rest.hero ?? {}) },
-      about: { ...DEFAULT_SETTINGS.about, ...(rest.about ?? {}) },
+      hero: {
+        ...DEFAULT_SETTINGS.hero,
+        ...(rest.hero ?? {}),
+      },
+      about: {
+        ...DEFAULT_SETTINGS.about,
+        ...(rest.about ?? {}),
+      },
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
@@ -122,6 +94,7 @@ export async function PUT(req: NextRequest) {
     const db = await getDb()
     const collection = db.collection('settings')
 
+    // _id: 'site_settings' দিয়ে upsert করা হচ্ছে যেন ডকুমেন্ট না থাকলে নতুন তৈরি হয়
     await collection.updateOne(
       { _id: 'site_settings' as unknown as undefined },
       { $set: next },
