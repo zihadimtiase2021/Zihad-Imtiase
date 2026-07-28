@@ -10,21 +10,48 @@ const TABS = [
   { label: 'Projects', value: 'projects' },
 ]
 
+export interface HeroData {
+  coverMedia?: string
+  profileMedia?: string
+  name?: string
+  title?: string
+  bio?: string
+  tags?: string[]
+  location?: string
+  joinDate?: string
+  stats?: { value: string; label: string }[]
+}
+
 interface ProfileHeroProps {
   activeFilter?: string
   onFilterChange?: (value: string) => void
-  coverMedia?: string
-  profileMedia?: string
+  heroData?: HeroData
 }
 
-function isVideo(url: string) { return /\.(mp4|webm|mov)$/i.test(url) }
+function isVideo(url: string) { 
+  return /\.(mp4|webm|mov)$/i.test(url) 
+}
 
 export function ProfileHero({
   activeFilter = 'all',
   onFilterChange,
-  coverMedia = '',
-  profileMedia = '',
+  heroData = {},
 }: ProfileHeroProps) {
+  // ফলব্যাক (Fallback) বা ডিফল্ট ভ্যালু সেট করা হচ্ছে যাতে ডেটা না থাকলেও সাইট ভেঙে না যায়
+  const coverMedia = heroData.coverMedia || ''
+  const profileMedia = heroData.profileMedia || ''
+  const name = heroData.name || 'Zihad Imtiase'
+  const title = heroData.title || 'Frontend Developer & Webflow Specialist'
+  const bio = heroData.bio || 'Crafting websites that drive engagement, conversions & success.'
+  const tags = heroData.tags?.length ? heroData.tags : ['#frontend', '#webflow', '#react', '#landingpage', '#CRO']
+  const location = heroData.location || 'Dhaka Cantonment, Bangladesh'
+  const joinDate = heroData.joinDate || 'Joined March 2022'
+  const stats = heroData.stats?.length ? heroData.stats : [
+    { value: '50+', label: 'Projects' },
+    { value: '40+', label: 'Clients' },
+    { value: '4+', label: 'Years' },
+  ]
+
   return (
     <div className="border-b border-border">
       {/* Banner */}
@@ -80,16 +107,16 @@ export function ProfileHero({
               ) : (
                 <img
                   src={profileMedia}
-                  alt="Zihad Imtiase"
+                  alt={name}
                   className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm"
                 />
               )
             ) : (
               <div
-                className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background flex items-center justify-center font-bold text-xl shadow-sm"
+                className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background flex items-center justify-center font-bold text-xl shadow-sm uppercase"
                 style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
               >
-                ZI
+                {name.slice(0, 2)}
               </div>
             )}
             <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
@@ -106,18 +133,18 @@ export function ProfileHero({
         </div>
 
         {/* Name + handle */}
-        <h1 className="font-bold text-xl text-foreground leading-tight">Zihad Imtiase</h1>
+        <h1 className="font-bold text-xl text-foreground leading-tight">{name}</h1>
         <p className="text-sm text-muted-foreground mb-2">
-          Frontend Developer &amp; Webflow Specialist
+          {title}
         </p>
 
         {/* Bio */}
         <p className="text-sm text-foreground leading-relaxed mb-3">
-          Crafting websites that drive engagement, conversions &amp; success.{' '}
-          <span className="text-muted-foreground">
-            {['#frontend', '#webflow', '#react', '#landingpage', '#CRO'].map((t) => (
-              <span key={t} style={{ color: '#f4a295' }} className="mr-1">
-                {t}
+          {bio}{' '}
+          <span className="text-muted-foreground inline-block mt-1">
+            {tags.map((t, idx) => (
+              <span key={idx} style={{ color: '#f4a295' }} className="mr-1.5">
+                {t.startsWith('#') ? t : `#${t}`}
               </span>
             ))}
           </span>
@@ -127,22 +154,18 @@ export function ProfileHero({
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-4">
           <span className="flex items-center gap-1">
             <MapPin size={11} style={{ color: '#f4a295' }} />
-            Dhaka Cantonment, Bangladesh
+            {location}
           </span>
           <span className="flex items-center gap-1">
             <Calendar size={11} style={{ color: '#f4a295' }} />
-            Joined March 2022
+            {joinDate}
           </span>
         </div>
 
         {/* Stats */}
         <div className="flex gap-6 text-sm">
-          {[
-            { value: '50+', label: 'Projects' },
-            { value: '40+', label: 'Clients' },
-            { value: '4+', label: 'Years' },
-          ].map(({ value, label }) => (
-            <div key={label} className="flex items-baseline gap-1">
+          {stats.map(({ value, label }, index) => (
+            <div key={index} className="flex items-baseline gap-1">
               <span className="font-bold text-foreground">{value}</span>
               <span className="text-muted-foreground text-xs">{label}</span>
             </div>
@@ -150,7 +173,7 @@ export function ProfileHero({
         </div>
       </div>
 
-      {/* Filter tab bar — single row, bottom-border style */}
+      {/* Filter tab bar */}
       <div className="flex border-t border-border">
         {TABS.map((tab) => {
           const active = activeFilter === tab.value
