@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PageShell } from '@/components/page-shell'
-import { ProfileHero } from '@/components/profile-hero'
+import { ProfileHero, type HeroData } from '@/components/profile-hero'
 import { FeedItem } from '@/components/feed-item'
-import { Suspense } from 'react'
 
 interface FeedItemData {
   id: string
@@ -35,8 +34,9 @@ function HomePageInner() {
   const searchParams = useSearchParams()
   const [items, setItems] = useState<FeedItemData[]>([])
   const [loading, setLoading] = useState(true)
-  const [coverMedia, setCoverMedia] = useState('')
-  const [profileMedia, setProfileMedia] = useState('')
+  
+  // পুরো ডায়নামিক প্রোফাইল ডেটা ধরে রাখার জন্য স্টেট
+  const [heroData, setHeroData] = useState<HeroData>({})
 
   // Read active filter from URL search param ?cat=, fallback to 'all'
   const activeFilter = searchParams.get('cat') ?? 'all'
@@ -56,14 +56,18 @@ function HomePageInner() {
         setLoading(false)
       }
     }
+
     async function fetchSettings() {
       try {
         const res = await fetch('/api/settings')
         const data = await res.json()
-        setCoverMedia(data?.hero?.coverMedia ?? '')
-        setProfileMedia(data?.hero?.profileMedia ?? '')
-      } catch { /* non-critical */ }
+        // ডেটাবেস থেকে আসা পুরো hero অবজেক্টটি স্টেটে সেভ করা হচ্ছে
+        setHeroData(data?.hero ?? {})
+      } catch { 
+        /* non-critical */ 
+      }
     }
+
     fetchFeedItems()
     fetchSettings()
   }, [])
@@ -82,12 +86,11 @@ function HomePageInner() {
 
   return (
     <PageShell>
-      {/* Profile hero contains the single filter tab bar */}
+      {/* Profile hero এখন পুরো heroData অবজেক্টটি ডায়নামিক্যালি রিসিভ করছে */}
       <ProfileHero
         activeFilter={activeFilter}
         onFilterChange={handleFilterChange}
-        coverMedia={coverMedia}
-        profileMedia={profileMedia}
+        heroData={heroData}
       />
 
       {/* Feed */}
@@ -135,7 +138,16 @@ function HomePageInner() {
 
 export default function HomePage() {
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <PageShell>
+          <div className="p-4 space-y-4">
+            <div className="animate-pulse rounded-2xl bg-muted h-64 w-full" />
+            <div className="animate-pulse rounded-2xl bg-muted h-32 w-full" />
+          </div>
+        </PageShell>
+      }
+    >
       <HomePageInner />
     </Suspense>
   )
