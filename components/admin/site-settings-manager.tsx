@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Upload, Trash2, Image, Film, Music, Loader2, X, Check,
-  Home, User, FileImage, Info,
+  Home, User, FileImage, Info, Plus, Save
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -11,6 +11,13 @@ interface SiteSettings {
   hero: {
     coverMedia: string
     profileMedia: string
+    name: string
+    title: string
+    bio: string
+    tags: string[]
+    location: string
+    joinDate: string
+    stats: { value: string; label: string }[]
   }
   about: {
     media: string[]
@@ -76,7 +83,6 @@ function SingleMediaSlot({
             </div>
           )}
 
-          {/* Action overlay */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
             <button
               type="button"
@@ -94,7 +100,6 @@ function SingleMediaSlot({
             </button>
           </div>
 
-          {/* Kind badge */}
           <div className="absolute top-2 left-2 text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-black/60 text-white pointer-events-none">
             {kind}
           </div>
@@ -184,7 +189,6 @@ function MultiMediaSlot({
                   </div>
                 )}
 
-                {/* Delete button */}
                 <button
                   type="button"
                   onClick={() => onDelete(i)}
@@ -257,7 +261,6 @@ function Section({
   const color = accent ?? '#f4a295'
   return (
     <div className="rounded-2xl border border-border bg-card overflow-hidden">
-      {/* Section header */}
       <div
         className="flex items-center gap-3 px-5 py-4 border-b border-border"
         style={{ background: color + '0a' }}
@@ -281,14 +284,26 @@ function Section({
 // ── Main component ────────────────────────────────────────────────────────────
 export function SiteSettingsManager() {
   const [settings, setSettings] = useState<SiteSettings>({
-    hero: { coverMedia: '', profileMedia: '' },
+    hero: {
+      coverMedia: '',
+      profileMedia: '',
+      name: '',
+      title: '',
+      bio: '',
+      tags: [],
+      location: '',
+      joinDate: '',
+      stats: [],
+    },
     about: { media: [] },
   })
+  
+  // ট্যাগগুলোকে কমা-সেপারেটেড টেক্সট হিসেবে এডিট করার জন্য লোকাল স্টেট
+  const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [saved, setSaved] = useState(false)
 
   useEffect(() => { fetchSettings() }, [])
 
@@ -303,10 +318,28 @@ export function SiteSettingsManager() {
     try {
       const res = await fetch('/api/settings')
       const data = await res.json()
+      
+      const hero = {
+        coverMedia: data.hero?.coverMedia ?? '',
+        profileMedia: data.hero?.profileMedia ?? '',
+        name: data.hero?.name ?? 'Zihad Imtiase',
+        title: data.hero?.title ?? 'Frontend Developer & Webflow Specialist',
+        bio: data.hero?.bio ?? 'Crafting websites that drive engagement, conversions & success.',
+        tags: Array.isArray(data.hero?.tags) ? data.hero.tags : ['#frontend', '#webflow', '#react', '#landingpage', '#CRO'],
+        location: data.hero?.location ?? 'Dhaka Cantonment, Bangladesh',
+        joinDate: data.hero?.joinDate ?? 'Joined March 2022',
+        stats: Array.isArray(data.hero?.stats) ? data.hero.stats : [
+          { value: '50+', label: 'Projects' },
+          { value: '40+', label: 'Clients' },
+          { value: '4+', label: 'Years' }
+        ]
+      }
+
       setSettings({
-        hero: { coverMedia: data.hero?.coverMedia ?? '', profileMedia: data.hero?.profileMedia ?? '' },
+        hero,
         about: { media: Array.isArray(data.about?.media) ? data.about.media : [] },
       })
+      setTagsInput(hero.tags.join(', '))
     } catch {
       addToast('Failed to load settings', false)
     } finally {
@@ -341,9 +374,7 @@ export function SiteSettingsManager() {
         body: JSON.stringify(next),
       })
       if (res.ok) {
-        setSaved(true)
-        setTimeout(() => setSaved(false), 2000)
-        addToast('Settings saved')
+        addToast('Settings saved successfully!')
       } else {
         addToast('Failed to save settings', false)
       }
@@ -354,7 +385,7 @@ export function SiteSettingsManager() {
     }
   }
 
-  // Hero handlers
+  // Hero Media handlers
   async function handleHeroSlot(file: File, field: 'coverMedia' | 'profileMedia') {
     const url = await uploadFile(file, `hero.${field}`)
     if (!url) return
@@ -369,7 +400,7 @@ export function SiteSettingsManager() {
     saveSettings(next)
   }
 
-  // About handlers
+  // About Media handlers
   async function handleAboutAdd(file: File) {
     const url = await uploadFile(file, 'about.media')
     if (!url) return
@@ -390,6 +421,47 @@ export function SiteSettingsManager() {
     saveSettings(next)
   }
 
+  // Text inputs change handler
+  function handleHeroTextChange(field: string, value: string) {
+    setSettings(prev => ({
+      ...prev,
+      hero: { ...prev.hero, [field]: value }
+    }))
+  }
+
+  // Stats handlers
+  function handleStatChange(index: number, key: 'value' | 'label', val: string) {
+    const newStats = [...settings.hero.stats]
+    newStats[index] = { ...newStats[index], [key]: val }
+    setSettings(prev => ({ ...prev, hero: { ...prev.hero, stats: newStats } }))
+  }
+
+  function addStat() {
+    setSettings(prev => ({
+      ...prev,
+      hero: { ...prev.hero, stats: [...prev.hero.stats, { value: '', label: '' }] }
+    }))
+  }
+
+  function removeStat(index: number) {
+    setSettings(prev => ({
+      ...prev,
+      hero: { ...prev.hero, stats: prev.hero.stats.filter((_, i) => i !== index) }
+    }))
+  }
+
+  // Save all text info
+  function handleSaveTextInfo(e: React.FormEvent) {
+    e.preventDefault()
+    const tagsArray = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
+    const updatedSettings = {
+      ...settings,
+      hero: { ...settings.hero, tags: tagsArray }
+    }
+    setSettings(updatedSettings)
+    saveSettings(updatedSettings)
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
@@ -401,7 +473,7 @@ export function SiteSettingsManager() {
   }
 
   return (
-    <div className="relative space-y-5">
+    <div className="relative space-y-5 pb-10">
       {/* Toast stack */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
@@ -417,13 +489,12 @@ export function SiteSettingsManager() {
         ))}
       </div>
 
-      {/* ── Home Hero ─────────────────────────────────────────── */}
+      {/* ── Home Hero Media ─────────────────────────────────────────── */}
       <Section
         icon={Home}
-        title="Home Hero"
+        title="Hero Media Banner & Avatar"
         description="Profile photo/video and cover banner shown on the home feed"
       >
-        {/* Cover media */}
         <SingleMediaSlot
           label="Cover Banner"
           hint="Shown as the header banner — image or video"
@@ -434,7 +505,6 @@ export function SiteSettingsManager() {
           onDelete={() => deleteHeroSlot('coverMedia')}
         />
 
-        {/* Profile media */}
         <SingleMediaSlot
           label="Profile Photo / Video"
           hint="Displayed as the avatar on the hero card"
@@ -444,20 +514,143 @@ export function SiteSettingsManager() {
           onChange={(f) => handleHeroSlot(f, 'profileMedia')}
           onDelete={() => deleteHeroSlot('profileMedia')}
         />
-
-        <div
-          className="flex items-start gap-2.5 p-3 rounded-xl text-[11px] text-muted-foreground leading-relaxed"
-          style={{ backgroundColor: '#f4a29510', border: '1px solid #f4a29520' }}
-        >
-          <Info size={13} style={{ color: '#f4a295', flexShrink: 0, marginTop: 1 }} />
-          Changes are saved automatically. The home page will reflect the new media on next load.
-        </div>
       </Section>
 
-      {/* ── About Page ─────────────────────────────────────────── */}
+      {/* ── Home Hero Text & Profile Info ───────────────────────────── */}
       <Section
         icon={User}
-        title="About Page"
+        title="Hero Profile Information"
+        description="Edit your name, bio, tags, location, and stats displayed on the home page"
+        accent="#e8806f"
+      >
+        <form onSubmit={handleSaveTextInfo} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Full Name</label>
+              <input
+                type="text"
+                value={settings.hero.name}
+                onChange={(e) => handleHeroTextChange('name', e.target.value)}
+                placeholder="Zihad Imtiase"
+                className="w-full px-3.5 py-2 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Professional Title</label>
+              <input
+                type="text"
+                value={settings.hero.title}
+                onChange={(e) => handleHeroTextChange('title', e.target.value)}
+                placeholder="Frontend Developer & Webflow Specialist"
+                className="w-full px-3.5 py-2 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Short Bio</label>
+            <textarea
+              rows={2}
+              value={settings.hero.bio}
+              onChange={(e) => handleHeroTextChange('bio', e.target.value)}
+              placeholder="Crafting websites that drive engagement..."
+              className="w-full px-3.5 py-2 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Hashtags (Comma separated)</label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="#frontend, #webflow, #react, #landingpage"
+              className="w-full px-3.5 py-2 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Location</label>
+              <input
+                type="text"
+                value={settings.hero.location}
+                onChange={(e) => handleHeroTextChange('location', e.target.value)}
+                placeholder="Dhaka Cantonment, Bangladesh"
+                className="w-full px-3.5 py-2 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Join Date / Experience Info</label>
+              <input
+                type="text"
+                value={settings.hero.joinDate}
+                onChange={(e) => handleHeroTextChange('joinDate', e.target.value)}
+                placeholder="Joined March 2022"
+                className="w-full px-3.5 py-2 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+              />
+            </div>
+          </div>
+
+          {/* Stats Editor */}
+          <div className="space-y-2 pt-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stats Counters</label>
+              <button
+                type="button"
+                onClick={addStat}
+                className="flex items-center gap-1 text-xs text-[#f4a295] font-semibold hover:underline"
+              >
+                <Plus size={14} /> Add Stat
+              </button>
+            </div>
+            
+            <div className="space-y-2">
+              {settings.hero.stats.map((st, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={st.value}
+                    onChange={(e) => handleStatChange(i, 'value', e.target.value)}
+                    placeholder="50+"
+                    className="w-24 px-3 py-1.5 rounded-xl bg-muted/50 border border-border text-sm font-bold focus:outline-none focus:border-[#f4a295]"
+                  />
+                  <input
+                    type="text"
+                    value={st.label}
+                    onChange={(e) => handleStatChange(i, 'label', e.target.value)}
+                    placeholder="Projects"
+                    className="flex-1 px-3 py-1.5 rounded-xl bg-muted/50 border border-border text-sm focus:outline-none focus:border-[#f4a295]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeStat(i)}
+                    className="p-2 text-muted-foreground hover:text-red-500 transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-opacity active:scale-95 text-[#1a1a1a] bg-[#f4a295] hover:opacity-90 disabled:opacity-50"
+            >
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Save Profile Info
+            </button>
+          </div>
+        </form>
+      </Section>
+
+      {/* ── About Page Media ─────────────────────────────────────────── */}
+      <Section
+        icon={User}
+        title="About Page Media"
         description="Images or videos shown in the photo section of the About page"
         accent="#9db8e8"
       >
@@ -467,14 +660,6 @@ export function SiteSettingsManager() {
           onAdd={handleAboutAdd}
           onDelete={handleAboutDelete}
         />
-
-        <div
-          className="flex items-start gap-2.5 p-3 rounded-xl text-[11px] text-muted-foreground leading-relaxed"
-          style={{ backgroundColor: '#9db8e810', border: '1px solid #9db8e820' }}
-        >
-          <Info size={13} style={{ color: '#9db8e8', flexShrink: 0, marginTop: 1 }} />
-          First media file is featured prominently. Additional files appear in a scrollable row. Supports images and video.
-        </div>
       </Section>
     </div>
   )
