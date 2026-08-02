@@ -7,6 +7,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPicker } from '@/components/media-picker'
+import { ToastStack } from '@/components/admin/shared'
+import { useToast } from '@/hooks/use-toast'
 
 // --- Interfaces ---
 interface TimelineItem { year: string; title: string; place: string; desc: string }
@@ -31,8 +33,6 @@ interface SiteSettings {
   }
 }
 
-type Toast = { id: number; msg: string; ok: boolean }
-
 function mediaKind(url: string): 'image' | 'video' | 'audio' | 'none' {
   if (!url) return 'none'
   if (/\.(mp4|webm|mov)$/i.test(url)) return 'video'
@@ -52,15 +52,9 @@ export function SiteSettingsManager() {
   const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [toasts, setToasts] = useState<Toast[]>([])
+  const { toasts, addToast } = useToast()
 
   useEffect(() => { fetchSettings() }, [])
-
-  function addToast(msg: string, ok = true) {
-    const id = Date.now()
-    setToasts((t) => [...t, { id, msg, ok }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
-  }
 
   async function fetchSettings() {
     setLoading(true)
@@ -168,9 +162,7 @@ export function SiteSettingsManager() {
 
   return (
     <div className="relative space-y-6 pb-10">
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
-        {toasts.map((t) => <div key={t.id} className={cn('px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto', t.ok ? 'bg-foreground text-background' : 'bg-destructive text-white')}>{t.msg}</div>)}
-      </div>
+      <ToastStack toasts={toasts} />
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
