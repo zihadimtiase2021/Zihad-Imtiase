@@ -4,20 +4,15 @@ import { Inter, JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { ThemeProvider } from '@/components/theme-provider'
 import { readSettingsData } from '@/lib/data'
+import { QuickCompose } from '@/components/quick-compose' // <-- ১. ইমপোর্ট করুন
 import './globals.css'
 
-// এই লাইনটি Next.js কে ক্যাশ করতে নিষেধ করবে (Real-time updates)
 export const dynamic = 'force-dynamic'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-jetbrains',
-})
-
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' })
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://zihadimtiase.com'
 
-// Server-side Dynamic Metadata Generation
 export async function generateMetadata(): Promise<Metadata> {
   const siteSettings = (await readSettingsData()) as any
   const meta = siteSettings?.meta || {}
@@ -28,38 +23,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: new URL(BASE_URL),
-    title: {
-      default: title,
-      template: `%s | ${title.split('—')[0].trim()}`,
-    },
+    title: { default: title, template: `%s | ${title.split('—')[0].trim()}` },
     description: description,
-    keywords: [
-      'frontend developer',
-      'webflow developer',
-      'react',
-      'landing page',
-      'web design',
-      'Bangladesh',
-    ],
+    keywords: ['frontend developer', 'webflow developer', 'react', 'landing page', 'web design', 'Bangladesh'],
     icons: faviconUrl ? { icon: faviconUrl, shortcut: faviconUrl, apple: faviconUrl } : undefined,
-    openGraph: {
-      type: 'website',
-      locale: 'en_US',
-      url: BASE_URL,
-      siteName: title.split('—')[0].trim(),
-      title: title,
-      description: description,
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: title,
-      description: description,
-    },
-    robots: {
-      index: true,
-      follow: true,
-      googleBot: { index: true, follow: true },
-    },
+    openGraph: { type: 'website', locale: 'en_US', url: BASE_URL, siteName: title.split('—')[0].trim(), title: title, description: description },
+    twitter: { card: 'summary_large_image', title: title, description: description },
+    robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
   }
 }
 
@@ -70,14 +40,10 @@ export const viewport: Viewport = {
   ],
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
-      >
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}>
         <Script
           id="theme-script"
           strategy="beforeInteractive"
@@ -86,6 +52,10 @@ export default function RootLayout({
           }}
         />
         <ThemeProvider>{children}</ThemeProvider>
+        
+        {/* ২. এখানে QuickCompose কম্পোনেন্টটি বসিয়ে দিন */}
+        <QuickCompose />
+        
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
