@@ -32,7 +32,7 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
   const [commentsLoaded, setCommentsLoaded] = useState(false)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
 
-  const [isCommentOpen, setIsCommentOpen] = useState(false)
+  const [isCommentOpen, setIsCommentOpen] = useState(true)
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'like' | 'comment' | null>(null)
   
