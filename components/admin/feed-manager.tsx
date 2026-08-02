@@ -3,13 +3,16 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload,
-  BookOpen, Quote, Loader2, Star,
-  Music, Film, ImagePlus,
+  BookOpen, Quote, Briefcase, Loader2, Star,
+  Music, Film, ImagePlus, ExternalLink, Code,
+  AlignLeft, Image, GripVertical, TrendingUp, ChevronDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
+
+// ─── Feed item types ──────────────────────────────────────────────────────────
 
 interface FeedItem {
   id: string
@@ -33,7 +36,7 @@ interface FeedItem {
   linkedProjectId?: string
 }
 
-const EMPTY: Omit<FeedItem, 'id'> = {
+const FEED_EMPTY: Omit<FeedItem, 'id'> = {
   type: 'post',
   title: '',
   excerpt: '',
@@ -54,15 +57,67 @@ const EMPTY: Omit<FeedItem, 'id'> = {
   linkedProjectId: '',
 }
 
-const TYPE_OPTIONS = [
-  { value: 'post', label: 'Post', icon: BookOpen, color: '#f4a295' },
-  { value: 'testimonial', label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
-]
-
-const CATEGORY_MAP: Record<string, string> = {
+const FEED_CATEGORY_MAP: Record<string, string> = {
   post: 'posts',
   testimonial: 'testimonials',
 }
+
+// ─── Project (portfolio) types ────────────────────────────────────────────────
+
+interface ContentBlock {
+  id: string
+  type: 'paragraph' | 'heading' | 'image' | 'divider'
+  text?: string
+  url?: string
+  caption?: string
+}
+
+interface Project {
+  id: string
+  title: string
+  description: string
+  category: string
+  image?: string
+  images?: string[]
+  content?: ContentBlock[]
+  tech: string[]
+  results: Record<string, string>
+  link?: string
+  github?: string
+  featured: boolean
+}
+
+const PROJECT_EMPTY: Omit<Project, 'id'> = {
+  title: '',
+  description: '',
+  category: 'development',
+  image: '',
+  images: [],
+  content: [],
+  tech: [],
+  results: { result: '' },
+  link: '',
+  github: '',
+  featured: false,
+}
+
+const PROJECT_CATEGORIES = ['development', 'webflow', 'design', 'marketing']
+
+function newBlockId() {
+  return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+}
+
+// ─── Post type picker options ─────────────────────────────────────────────────
+
+type PostKind = 'post' | 'testimonial' | 'project'
+
+const KIND_OPTIONS: { value: PostKind; label: string; description: string; icon: React.ElementType; color: string }[] = [
+  { value: 'post', label: 'Post', description: 'General update or article', icon: BookOpen, color: '#f4a295' },
+  { value: 'testimonial', label: 'Testimonial', description: 'Client review with rating', icon: Quote, color: '#a8d5c2' },
+  { value: 'project', label: 'Project', description: 'Portfolio project with gallery', icon: Briefcase, color: '#9db8e8' },
+]
+
+// ─── Media helpers ────────────────────────────────────────────────────────────
 
 function mediaType(url: string): 'image' | 'video' | 'audio' {
   if (/\.(mp4|webm|mov)$/i.test(url)) return 'video'
@@ -74,19 +129,15 @@ function MediaThumb({ url, onRemove }: { url: string; onRemove: () => void }) {
   const kind = mediaType(url)
   return (
     <div className="relative rounded-xl overflow-hidden bg-muted border border-border group/thumb">
-      {kind === 'image' && (
-        <img src={url} alt="" className="w-full h-24 object-cover" />
-      )}
+      {kind === 'image' && <img src={url} alt="" className="w-full h-24 object-cover" />}
       {kind === 'video' && (
         <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-muted-foreground">
-          <Film size={20} />
-          <span className="text-[10px]">Video</span>
+          <Film size={20} /><span className="text-[10px]">Video</span>
         </div>
       )}
       {kind === 'audio' && (
         <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-muted-foreground">
-          <Music size={20} />
-          <span className="text-[10px]">Audio</span>
+          <Music size={20} /><span className="text-[10px]">Audio</span>
         </div>
       )}
       <button
@@ -96,30 +147,104 @@ function MediaThumb({ url, onRemove }: { url: string; onRemove: () => void }) {
       >
         <X size={11} />
       </button>
-      <div className="absolute bottom-1 left-1.5 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-black/60 text-white">
-        {kind}
-      </div>
+      <div className="absolute bottom-1 left-1.5 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-black/60 text-white">{kind}</div>
     </div>
   )
 }
 
+// ─── Type picker popover ──────────────────────────────────────────────────────
+
+function TypePickerPopover({ onSelect }: { onSelect: (kind: PostKind) => void }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+        style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+      >
+        <Plus size={16} />
+        New Post
+        <ChevronDown size={13} className={cn('transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-64 rounded-2xl border border-border bg-card shadow-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-border">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Choose post type</p>
+          </div>
+          <div className="p-2 space-y-1">
+            {KIND_OPTIONS.map(({ value, label, description, icon: Icon, color }) => (
+              <button
+                key={value}
+                onClick={() => { setOpen(false); onSelect(value) }}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted transition-colors text-left group"
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors"
+                  style={{ backgroundColor: color + '18' }}
+                >
+                  <Icon size={15} style={{ color }} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{label}</p>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function FeedManager() {
+  // ── Feed state ──
   const [items, setItems] = useState<FeedItem[]>([])
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [form, setForm] = useState<Omit<FeedItem, 'id'>>(EMPTY)
-  const [showForm, setShowForm] = useState(false)
+  const [editingFeedId, setEditingFeedId] = useState<string | null>(null)
+  const [feedForm, setFeedForm] = useState<Omit<FeedItem, 'id'>>(FEED_EMPTY)
+  const [feedUploading, setFeedUploading] = useState(false)
+  const [feedPickerOpen, setFeedPickerOpen] = useState(false)
+
+  // ── Project state ──
+  const [projects, setProjects] = useState<Project[]>([])
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [projectForm, setProjectForm] = useState<Omit<Project, 'id'>>(PROJECT_EMPTY)
+  const [techInput, setTechInput] = useState('')
+  const [resultKey, setResultKey] = useState('')
+  const [resultVal, setResultVal] = useState('')
+  const [galleryUploading, setGalleryUploading] = useState(false)
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false)
+
+  // ── Shared state ──
+  const [activeKind, setActiveKind] = useState<PostKind | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [pickerOpen, setPickerOpen] = useState(false)
   const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [techInput, setTechInput] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
+
+  const feedFileRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { fetchItems() }, [])
+  useEffect(() => { fetchItems(); fetchProjects() }, [])
+
+  // ── Data fetchers ──
 
   async function fetchItems() {
     try {
@@ -127,113 +252,245 @@ export function FeedManager() {
       const data = await res.json()
       setItems(data.items || [])
     } catch {
-      addToast('Failed to load items', false)
+      addToast('Failed to load posts', false)
     } finally {
       setLoading(false)
     }
   }
 
-  function set(key: string, value: unknown) {
-    setForm((f) => ({ ...f, [key]: value }))
+  async function fetchProjects() {
+    try {
+      const res = await fetch('/api/portfolio')
+      const data = await res.json()
+      setProjects(data.projects || [])
+    } catch { /* non-fatal */ }
   }
 
-  function openNew() {
-    setEditingId(null)
-    setForm({ ...EMPTY, date: new Date().toISOString().split('T')[0] })
-    setTechInput('')
-    setShowForm(true)
+  // ── Open/close helpers ──
+
+  function openNew(kind: PostKind) {
+    setActiveKind(kind)
+    if (kind === 'project') {
+      setEditingProjectId(null)
+      setProjectForm(PROJECT_EMPTY)
+      setTechInput('')
+      setResultKey('')
+      setResultVal('')
+    } else {
+      setEditingFeedId(null)
+      setFeedForm({ ...FEED_EMPTY, type: kind, category: FEED_CATEGORY_MAP[kind] ?? 'posts', date: new Date().toISOString().split('T')[0] })
+    }
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
   }
 
-  function openEdit(item: FeedItem) {
-    setEditingId(item.id)
-    setForm({ ...item, media: item.media ?? [] })
-    setTechInput(Array.isArray(item.tech) ? item.tech.join(', ') : '')
-    setShowForm(true)
+  function openEditFeed(item: FeedItem) {
+    const kind: PostKind = item.type === 'project' ? 'project' : item.type === 'testimonial' ? 'testimonial' : 'post'
+    if (kind === 'project') {
+      // Find matching project record and open project form
+      const proj = projects.find((p) => p.id === item.linkedProjectId)
+      if (proj) {
+        openEditProject(proj)
+        return
+      }
+    }
+    setActiveKind(kind)
+    setEditingFeedId(item.id)
+    setFeedForm({ ...item, media: item.media ?? [] })
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+  }
+
+  function openEditProject(project: Project) {
+    setActiveKind('project')
+    setEditingProjectId(project.id)
+    setProjectForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
+    setTechInput(Array.isArray(project.tech) ? project.tech.join(', ') : '')
+    const firstEntry = Object.entries(project.results ?? {})[0]
+    setResultKey(firstEntry?.[0] ?? '')
+    setResultVal(firstEntry?.[1] ?? '')
     setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
   }
 
   function closeForm() {
-    setShowForm(false)
-    setEditingId(null)
+    setActiveKind(null)
+    setEditingFeedId(null)
+    setEditingProjectId(null)
   }
 
-  async function handleUploadFiles(files: FileList) {
-    setUploading(true)
+  // ── Feed form helpers ──
+
+  function setFeed(key: string, value: unknown) {
+    setFeedForm((f) => ({ ...f, [key]: value }))
+  }
+
+  async function handleFeedUpload(files: FileList) {
+    setFeedUploading(true)
     const uploaded: string[] = []
     for (const file of Array.from(files)) {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('format', uploadFormat) // Using the selected format
-
+      fd.append('format', uploadFormat)
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const data = await res.json()
         if (data.success) uploaded.push(data.url)
         else addToast(`Upload failed: ${file.name}`, false)
-      } catch {
-        addToast(`Upload failed: ${file.name}`, false)
-      }
+      } catch { addToast(`Upload failed: ${file.name}`, false) }
     }
     if (uploaded.length > 0) {
-      setForm((f) => ({
-        ...f,
-        media: [...(f.media ?? []), ...uploaded],
-      }))
-      addToast(`${uploaded.length} file${uploaded.length > 1 ? 's' : ''} uploaded`)
+      setFeedForm((f) => ({ ...f, media: [...(f.media ?? []), ...uploaded] }))
+      addToast(`${uploaded.length} file(s) uploaded`)
     }
-    setUploading(false)
+    setFeedUploading(false)
   }
 
-  function handleSelectExisting(urls: string[]) {
-    const remainingSlots = 4 - (form.media?.length || 0)
-    const urlsToAdd = urls.slice(0, remainingSlots)
-    
-    if (urlsToAdd.length > 0) {
-      setForm((f) => ({
-        ...f,
-        media: [...(f.media ?? []), ...urlsToAdd],
-      }))
-      addToast(`${urlsToAdd.length} media attached`)
+  function handleFeedSelectExisting(urls: string[]) {
+    const slots = 4 - (feedForm.media?.length || 0)
+    const toAdd = urls.slice(0, slots)
+    if (toAdd.length > 0) {
+      setFeedForm((f) => ({ ...f, media: [...(f.media ?? []), ...toAdd] }))
+      addToast(`${toAdd.length} media attached`)
     }
   }
 
-  function removeMedia(index: number) {
-    setForm((f) => ({ ...f, media: (f.media ?? []).filter((_, i) => i !== index) }))
+  function removeFeedMedia(index: number) {
+    setFeedForm((f) => ({ ...f, media: (f.media ?? []).filter((_, i) => i !== index) }))
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleFeedSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const payload = {
-      ...form,
-      category: CATEGORY_MAP[form.type] ?? 'articles',
-      tech: techInput.split(',').map((t) => t.trim()).filter(Boolean),
-      image: (form.media ?? [])[0] ?? form.image ?? '',
+      ...feedForm,
+      category: FEED_CATEGORY_MAP[feedForm.type] ?? 'posts',
+      image: (feedForm.media ?? [])[0] ?? feedForm.image ?? '',
     }
     try {
-      const method = editingId ? 'PUT' : 'POST'
-      const body = editingId ? { id: editingId, updates: payload } : payload
+      const method = editingFeedId ? 'PUT' : 'POST'
+      const body = editingFeedId ? { id: editingFeedId, updates: payload } : payload
       const res = await fetch('/api/feed', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (res.ok) {
-        addToast(editingId ? 'Post updated' : 'Post created')
+        addToast(editingFeedId ? 'Post updated' : 'Post published')
         fetchItems()
         closeForm()
-      } else {
-        addToast('Save failed', false)
-      }
-    } catch {
-      addToast('Save failed', false)
-    } finally {
-      setSaving(false)
+      } else { addToast('Save failed', false) }
+    } catch { addToast('Save failed', false) }
+    finally { setSaving(false) }
+  }
+
+  // ── Project form helpers ──
+
+  function setProject(key: string, value: unknown) {
+    setProjectForm((f) => ({ ...f, [key]: value }))
+  }
+
+  async function handleGalleryUpload(files: FileList) {
+    setGalleryUploading(true)
+    const uploaded: string[] = []
+    for (const file of Array.from(files)) {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('format', uploadFormat)
+      try {
+        const res = await fetch('/api/upload', { method: 'POST', body: fd })
+        const data = await res.json()
+        if (data.success) uploaded.push(data.url)
+        else addToast(`Upload failed: ${file.name}`, false)
+      } catch { addToast(`Upload failed: ${file.name}`, false) }
+    }
+    if (uploaded.length > 0) {
+      setProjectForm((f) => ({ ...f, images: [...(f.images ?? []), ...uploaded] }))
+      addToast(`${uploaded.length} image(s) added`)
+    }
+    setGalleryUploading(false)
+  }
+
+  function handleProjectSelectExisting(urls: string[]) {
+    if (urls.length > 0) {
+      setProjectForm((f) => ({ ...f, images: [...(f.images ?? []), ...urls] }))
+      addToast(`${urls.length} media attached`)
     }
   }
 
-  async function handleDelete(id: string) {
+  function removeGalleryImage(index: number) {
+    setProjectForm((f) => ({ ...f, images: (f.images ?? []).filter((_, i) => i !== index) }))
+  }
+
+  function addBlock(type: ContentBlock['type']) {
+    const block: ContentBlock = { id: newBlockId(), type }
+    setProjectForm((f) => ({ ...f, content: [...(f.content ?? []), block] }))
+  }
+
+  function updateBlock(id: string, changes: Partial<ContentBlock>) {
+    setProjectForm((f) => ({
+      ...f,
+      content: (f.content ?? []).map((b) => (b.id === id ? { ...b, ...changes } : b)),
+    }))
+  }
+
+  function removeBlock(id: string) {
+    setProjectForm((f) => ({ ...f, content: (f.content ?? []).filter((b) => b.id !== id) }))
+  }
+
+  async function handleProjectSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    const techArray = techInput.split(',').map((t) => t.trim()).filter(Boolean)
+    const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
+    const coverImage = projectForm.images?.[0] ?? projectForm.image ?? ''
+    const payload = { ...projectForm, tech: techArray, results, image: coverImage }
+
+    try {
+      const method = editingProjectId ? 'PUT' : 'POST'
+      const body = editingProjectId ? { id: editingProjectId, updates: payload } : payload
+      const res = await fetch('/api/portfolio', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        const saved = await res.json()
+        addToast(editingProjectId ? 'Project updated' : 'Project added')
+
+        if (!editingProjectId) {
+          const projectData = saved.project ?? payload
+          const feedPost = {
+            type: 'project',
+            category: 'projects',
+            title: projectData.title,
+            excerpt: projectData.description,
+            content: projectData.description,
+            author: 'Zihad Imtiase',
+            image: coverImage,
+            media: projectForm.images ?? [],
+            tech: techArray,
+            link: projectData.link ?? '',
+            featured: projectData.featured ?? false,
+            linkedProjectId: projectData.id ?? saved.project?.id ?? '',
+          }
+          try {
+            await fetch('/api/feed', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(feedPost),
+            })
+          } catch { /* non-fatal */ }
+        }
+
+        fetchProjects()
+        fetchItems()
+        closeForm()
+      } else { addToast('Save failed', false) }
+    } catch { addToast('Save failed', false) }
+    finally { setSaving(false) }
+  }
+
+  // ── Delete ──
+
+  async function handleDeleteFeed(id: string) {
     try {
       const res = await fetch('/api/feed', {
         method: 'DELETE',
@@ -243,17 +500,23 @@ export function FeedManager() {
       if (res.ok) {
         addToast('Post deleted')
         setItems((prev) => prev.filter((i) => i.id !== id))
-      } else {
-        addToast('Delete failed', false)
-      }
-    } catch {
-      addToast('Delete failed', false)
-    } finally {
-      setDeleteConfirm(null)
-    }
+      } else { addToast('Delete failed', false) }
+    } catch { addToast('Delete failed', false) }
+    finally { setDeleteConfirm(null) }
   }
 
-  const mediaCount = (form.media ?? []).length
+  const feedMediaCount = (feedForm.media ?? []).length
+  const galleryCount = (projectForm.images ?? []).length
+
+  const activeMeta = activeKind ? KIND_OPTIONS.find((k) => k.value === activeKind) : null
+  const formTitle = (() => {
+    if (!activeKind) return ''
+    if (activeKind === 'project') return editingProjectId ? 'Edit Project' : 'Add New Project'
+    if (activeKind === 'testimonial') return editingFeedId ? 'Edit Testimonial' : 'New Testimonial'
+    return editingFeedId ? 'Edit Post' : 'New Post'
+  })()
+
+  // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="relative">
@@ -266,249 +529,389 @@ export function FeedManager() {
             {items.length} {items.length === 1 ? 'post' : 'posts'} total
           </p>
         </div>
-        <button
-          onClick={openNew}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
-          style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-        >
-          <Plus size={16} />
-          New Post
-        </button>
+        <TypePickerPopover onSelect={openNew} />
       </div>
 
       <UploadFormatPicker value={uploadFormat} onChange={setUploadFormat} />
 
-      {showForm && (
+      {/* ── Unified form panel ── */}
+      {activeKind && (
         <div ref={formRef} className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border" style={{ background: '#f4a29510' }}>
-            <h3 className="font-semibold text-foreground text-sm">
-              {editingId ? 'Edit Post' : 'New Post'}
-            </h3>
-            <button onClick={closeForm} className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+          {/* Form header */}
+          <div
+            className="flex items-center justify-between px-5 py-4 border-b border-border"
+            style={{ background: (activeMeta?.color ?? '#f4a295') + '10' }}
+          >
+            <div className="flex items-center gap-2.5">
+              {activeMeta && (
+                <div
+                  className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: activeMeta.color + '20' }}
+                >
+                  <activeMeta.icon size={14} style={{ color: activeMeta.color }} />
+                </div>
+              )}
+              <h3 className="font-semibold text-foreground text-sm">{formTitle}</h3>
+            </div>
+            <button
+              onClick={closeForm}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
               <X size={15} />
             </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Post Type
-              </label>
-              <div className="flex gap-2">
-                {TYPE_OPTIONS.map((opt) => {
-                  const Icon = opt.icon
-                  const active = form.type === opt.value
-                  return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => set('type', opt.value)}
-                      className={cn(
-                        'flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all flex-1 justify-center',
-                        active ? 'border-transparent' : 'border-border text-muted-foreground hover:border-border/80'
-                      )}
-                      style={active ? { backgroundColor: opt.color + '20', color: opt.color, borderColor: opt.color + '40' } : {}}
-                    >
-                      <Icon size={13} />
-                      {opt.label}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Title <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) => set('title', e.target.value)}
-                placeholder="Enter a compelling title..."
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Excerpt / Short text
-              </label>
-              <textarea
-                value={form.excerpt}
-                onChange={(e) => set('excerpt', e.target.value)}
-                placeholder="Short preview shown in the feed..."
-                rows={2}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors resize-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Full Content
-              </label>
-              <textarea
-                value={form.content}
-                onChange={(e) => set('content', e.target.value)}
-                placeholder="Full post content..."
-                rows={4}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors resize-none"
-              />
-            </div>
-
-            {form.type === 'testimonial' && (
-              <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Client Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Client Name</label>
-                    <input
-                      type="text"
-                      value={form.clientName || ''}
-                      onChange={(e) => set('clientName', e.target.value)}
-                      placeholder="Felix Johnson"
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Role / Company</label>
-                    <input
-                      type="text"
-                      value={form.clientRole || ''}
-                      onChange={(e) => set('clientRole', e.target.value)}
-                      placeholder="Founder, TechStart"
-                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1.5">Rating</label>
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => set('rating', n)}
-                        className="transition-transform hover:scale-110 active:scale-95"
-                      >
-                        <Star
-                          size={22}
-                          fill={(form.rating ?? 5) >= n ? '#f4a295' : 'none'}
-                          style={{ color: (form.rating ?? 5) >= n ? '#f4a295' : 'var(--muted-foreground)' }}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Media
-                  <span className="ml-1 font-normal normal-case text-muted-foreground/70">
-                    — images, video, audio (up to 4 files)
-                  </span>
+          {/* ── POST / TESTIMONIAL FORM ── */}
+          {(activeKind === 'post' || activeKind === 'testimonial') && (
+            <form onSubmit={handleFeedSubmit} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Title <span className="text-destructive">*</span>
                 </label>
-                {mediaCount > 0 && (
-                  <span className="text-[11px] text-muted-foreground">{mediaCount}/4</span>
-                )}
+                <input
+                  type="text"
+                  value={feedForm.title}
+                  onChange={(e) => setFeed('title', e.target.value)}
+                  placeholder={activeKind === 'testimonial' ? 'What was the project about?' : 'Enter a compelling title...'}
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors"
+                />
               </div>
 
-              {mediaCount > 0 && (
-                <div className={cn('grid gap-2 mb-2', mediaCount === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
-                  {(form.media ?? []).map((url, i) => (
-                    <MediaThumb key={url + i} url={url} onRemove={() => removeMedia(i)} />
-                  ))}
-                </div>
-              )}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  {activeKind === 'testimonial' ? 'Testimonial Text' : 'Excerpt / Short text'}
+                </label>
+                <textarea
+                  value={feedForm.excerpt}
+                  onChange={(e) => setFeed('excerpt', e.target.value)}
+                  placeholder={activeKind === 'testimonial' ? 'What the client said...' : 'Short preview shown in the feed...'}
+                  rows={2}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors resize-none"
+                />
+              </div>
 
-              {mediaCount < 4 && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div
-                    className={cn(
-                      'border-2 border-dashed rounded-xl transition-colors cursor-pointer',
-                      uploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30'
-                    )}
-                    onClick={() => !uploading && fileRef.current?.click()}
-                  >
-                    <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
-                      {uploading ? (
-                        <Loader2 size={18} className="animate-spin text-[#f4a295]" />
-                      ) : (
-                        <>
-                          <Upload size={18} />
-                          <span className="text-xs">Upload New</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div
-                    className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
-                    onClick={() => setPickerOpen(true)}
-                  >
-                    <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
-                      <ImagePlus size={18} />
-                      <span className="text-xs">Choose Existing</span>
-                    </div>
-                  </div>
-
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    multiple
-                    accept="image/*,video/mp4,video/webm,audio/*"
-                    className="hidden"
-                    onChange={(e) => e.target.files && handleUploadFiles(e.target.files)}
+              {activeKind === 'post' && (
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Full Content</label>
+                  <textarea
+                    value={feedForm.content}
+                    onChange={(e) => setFeed('content', e.target.value)}
+                    placeholder="Full post content..."
+                    rows={4}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors resize-none"
                   />
                 </div>
               )}
-            </div>
 
+              {activeKind === 'testimonial' && (
+                <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Client Details</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Client Name</label>
+                      <input
+                        type="text"
+                        value={feedForm.clientName || ''}
+                        onChange={(e) => setFeed('clientName', e.target.value)}
+                        placeholder="Felix Johnson"
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-1">Role / Company</label>
+                      <input
+                        type="text"
+                        value={feedForm.clientRole || ''}
+                        onChange={(e) => setFeed('clientRole', e.target.value)}
+                        placeholder="Founder, TechStart"
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1.5">Rating</label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setFeed('rating', n)}
+                          className="transition-transform hover:scale-110 active:scale-95"
+                        >
+                          <Star
+                            size={22}
+                            fill={(feedForm.rating ?? 5) >= n ? '#a8d5c2' : 'none'}
+                            style={{ color: (feedForm.rating ?? 5) >= n ? '#a8d5c2' : 'var(--muted-foreground)' }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
+              {/* Media upload */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Media
+                    <span className="ml-1 font-normal normal-case text-muted-foreground/70">— up to 4 files</span>
+                  </label>
+                  {feedMediaCount > 0 && <span className="text-[11px] text-muted-foreground">{feedMediaCount}/4</span>}
+                </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Date
-              </label>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => set('date', e.target.value)}
-                className="px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-              />
-            </div>
+                {feedMediaCount > 0 && (
+                  <div className={cn('grid gap-2 mb-2', feedMediaCount === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                    {(feedForm.media ?? []).map((url, i) => (
+                      <MediaThumb key={url + i} url={url} onRemove={() => removeFeedMedia(i)} />
+                    ))}
+                  </div>
+                )}
 
-            <div className="flex gap-2 pt-1">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
-                style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {editingId ? 'Save changes' : 'Publish post'}
-              </button>
-              <button
-                type="button"
-                onClick={closeForm}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
+                {feedMediaCount < 4 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div
+                      className={cn('border-2 border-dashed rounded-xl transition-colors cursor-pointer', feedUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30')}
+                      onClick={() => !feedUploading && feedFileRef.current?.click()}
+                    >
+                      <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                        {feedUploading ? <Loader2 size={18} className="animate-spin text-[#f4a295]" /> : <><Upload size={18} /><span className="text-xs">Upload New</span></>}
+                      </div>
+                    </div>
+                    <div
+                      className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
+                      onClick={() => setFeedPickerOpen(true)}
+                    >
+                      <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                        <ImagePlus size={18} /><span className="text-xs">Choose Existing</span>
+                      </div>
+                    </div>
+                    <input ref={feedFileRef} type="file" multiple accept="image/*,video/mp4,video/webm,audio/*" className="hidden" onChange={(e) => e.target.files && handleFeedUpload(e.target.files)} />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Date</label>
+                <input
+                  type="date"
+                  value={feedForm.date}
+                  onChange={(e) => setFeed('date', e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+                  style={{ backgroundColor: activeMeta?.color ?? '#f4a295', color: '#1a1a1a' }}
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {editingFeedId ? 'Save changes' : 'Publish'}
+                </button>
+                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ── PROJECT FORM ── */}
+          {activeKind === 'project' && (
+            <form onSubmit={handleProjectSubmit} className="p-5 space-y-4">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
+                  <div className="relative">
+                    <select
+                      value={projectForm.category}
+                      onChange={(e) => setProject('category', e.target.value)}
+                      className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8"
+                    >
+                      {PROJECT_CATEGORIES.map((c) => (
+                        <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                      ))}
+                    </select>
+                    <Code size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+                <div className="flex flex-col justify-end pb-0.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
+                  <button
+                    type="button"
+                    onClick={() => setProject('featured', !projectForm.featured)}
+                    className={cn('flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all', projectForm.featured ? 'border-transparent' : 'border-border text-muted-foreground')}
+                    style={projectForm.featured ? { backgroundColor: '#9db8e820', color: '#9db8e8', borderColor: '#9db8e840' } : {}}
+                  >
+                    <Star size={13} fill={projectForm.featured ? '#9db8e8' : 'none'} style={{ color: projectForm.featured ? '#9db8e8' : undefined }} /> Featured
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Project Title <span className="text-destructive">*</span></label>
+                <input
+                  type="text"
+                  value={projectForm.title}
+                  onChange={(e) => setProject('title', e.target.value)}
+                  placeholder="e.g. SaaS Landing Page for TechStart"
+                  required
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Description</label>
+                <textarea
+                  value={projectForm.description}
+                  onChange={(e) => setProject('description', e.target.value)}
+                  placeholder="What did you build and what problem did it solve?"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span>
+                </label>
+                <input
+                  type="text"
+                  value={techInput}
+                  onChange={(e) => setTechInput(e.target.value)}
+                  placeholder="React, Webflow, TailwindCSS, Stripe"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                />
+                {techInput.trim() && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {techInput.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
+                      <span key={t} className="px-2 py-0.5 rounded-full text-[11px] bg-muted text-muted-foreground">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Key Result <span className="text-xs font-normal normal-case text-muted-foreground">(metric badge)</span>
+                </label>
+                <div className="flex gap-2">
+                  <input type="text" value={resultKey} onChange={(e) => setResultKey(e.target.value)} placeholder="Conversions" className="w-2/5 px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                  <input type="text" value={resultVal} onChange={(e) => setResultVal(e.target.value)} placeholder="+40% increase" className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Live URL</label>
+                  <div className="relative">
+                    <ExternalLink size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input type="url" value={projectForm.link || ''} onChange={(e) => setProject('link', e.target.value)} placeholder="https://example.com" className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">GitHub URL</label>
+                  <div className="relative">
+                    <Code size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input type="url" value={projectForm.github || ''} onChange={(e) => setProject('github', e.target.value)} placeholder="https://github.com/..." className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Gallery */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Project Images
+                    <span className="ml-1 font-normal normal-case text-muted-foreground/70">— first image is cover</span>
+                  </label>
+                  {galleryCount > 0 && <span className="text-[11px] text-muted-foreground">{galleryCount} image{galleryCount !== 1 ? 's' : ''}</span>}
+                </div>
+
+                {galleryCount > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    {(projectForm.images ?? []).map((url, i) => (
+                      <div key={url + i} className="relative group/img rounded-xl overflow-hidden bg-muted border border-border">
+                        <img src={url} alt="" className="w-full h-20 object-cover" />
+                        {i === 0 && <div className="absolute top-1 left-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/70 text-white">Cover</div>}
+                        <button type="button" onClick={() => removeGalleryImage(i)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"><X size={10} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div onClick={() => !galleryUploading && galleryRef.current?.click()} className={cn('border-2 border-dashed rounded-xl transition-colors cursor-pointer', galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#9db8e8]/50 hover:bg-muted/30')}>
+                    <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                      {galleryUploading ? <Loader2 size={18} className="animate-spin text-[#9db8e8]" /> : <><Upload size={18} /><span className="text-xs">Upload New</span></>}
+                    </div>
+                  </div>
+                  <div onClick={() => setProjectPickerOpen(true)} className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#9db8e8]/50 hover:bg-muted/30">
+                    <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground"><ImagePlus size={18} /><span className="text-xs">Choose Existing</span></div>
+                  </div>
+                  <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleGalleryUpload(e.target.files)} />
+                </div>
+              </div>
+
+              {/* Content blocks */}
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Detailed Content</label>
+                {(projectForm.content ?? []).length > 0 && (
+                  <div className="space-y-2 mb-2">
+                    {(projectForm.content ?? []).map((block) => (
+                      <div key={block.id} className="flex gap-2 items-start group/block">
+                        <div className="mt-2.5 text-muted-foreground/40 hover:text-muted-foreground cursor-grab transition-colors"><GripVertical size={14} /></div>
+                        <div className="flex-1 min-w-0">
+                          {block.type === 'heading' && <input type="text" value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Section heading..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />}
+                          {block.type === 'paragraph' && <textarea value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Write a paragraph..." rows={3} className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none" />}
+                          {block.type === 'image' && (
+                            <div className="space-y-1.5">
+                              <input type="url" value={block.url ?? ''} onChange={(e) => updateBlock(block.id, { url: e.target.value })} placeholder="Image URL..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                              <input type="text" value={block.caption ?? ''} onChange={(e) => updateBlock(block.id, { caption: e.target.value })} placeholder="Caption (optional)..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                              {block.url && <div className="rounded-xl overflow-hidden bg-muted border border-border"><img src={block.url} alt={block.caption ?? ''} className="w-full max-h-32 object-cover" /></div>}
+                            </div>
+                          )}
+                          {block.type === 'divider' && <div className="flex items-center gap-2 py-2 text-muted-foreground"><div className="flex-1 h-px bg-border" /><span className="text-[10px] uppercase tracking-widest">divider</span><div className="flex-1 h-px bg-border" /></div>}
+                        </div>
+                        <button type="button" onClick={() => removeBlock(block.id)} className="mt-2 w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover/block:opacity-100"><X size={12} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => addBlock('heading')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><span className="font-bold">H</span> Heading</button>
+                  <button type="button" onClick={() => addBlock('paragraph')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><AlignLeft size={12} /> Paragraph</button>
+                  <button type="button" onClick={() => addBlock('image')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Image size={12} /> Image</button>
+                  <button type="button" onClick={() => addBlock('divider')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">— Divider</button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
+                  style={{ backgroundColor: '#9db8e8', color: '#1a1a1a' }}
+                >
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  {editingProjectId ? 'Save changes' : 'Add project'}
+                </button>
+                <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 
+      {/* ── Feed list ── */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-16 rounded-xl bg-muted animate-pulse" />
-          ))}
+          {[1, 2, 3].map((n) => <div key={n} className="h-16 rounded-xl bg-muted animate-pulse" />)}
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 rounded-2xl border border-dashed border-border">
@@ -520,8 +923,13 @@ export function FeedManager() {
       ) : (
         <div className="space-y-2">
           {items.map((item) => {
-            const typeMeta = TYPE_OPTIONS.find((t) => t.value === item.type) ?? TYPE_OPTIONS[0]
-            const TypeIcon = typeMeta.icon
+            const kindMeta =
+              item.type === 'project'
+                ? KIND_OPTIONS[2]
+                : item.type === 'testimonial'
+                ? KIND_OPTIONS[1]
+                : KIND_OPTIONS[0]
+            const TypeIcon = kindMeta.icon
             const isDeleting = deleteConfirm === item.id
             const allMedia = item.media?.length ? item.media : item.image ? [item.image] : []
 
@@ -533,25 +941,29 @@ export function FeedManager() {
                   isDeleting ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card hover:border-border/80 hover:bg-muted/30'
                 )}
               >
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: typeMeta.color + '18' }}>
-                  <TypeIcon size={14} style={{ color: typeMeta.color }} />
-                </div>
+                {allMedia[0] ? (
+                  <img src={allMedia[0]} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: kindMeta.color + '18' }}>
+                    <TypeIcon size={15} style={{ color: kindMeta.color }} />
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-foreground truncate">{item.title || '(no title)'}</p>
                   <p className="text-xs text-muted-foreground">
-                    {typeMeta.label} · {item.date}
+                    {kindMeta.label} · {item.date}
                     {allMedia.length > 0 && ` · ${allMedia.length} media`}
                   </p>
                 </div>
                 {isDeleting ? (
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground">Delete?</span>
-                    <button onClick={() => handleDelete(item.id)} className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold hover:opacity-90 transition-opacity">Yes</button>
+                    <button onClick={() => handleDeleteFeed(item.id)} className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold hover:opacity-90 transition-opacity">Yes</button>
                     <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">No</button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(item)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Edit2 size={14} /></button>
+                    <button onClick={() => openEditFeed(item)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Edit2 size={14} /></button>
                     <button onClick={() => setDeleteConfirm(item.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"><Trash2 size={14} /></button>
                   </div>
                 )}
@@ -561,12 +973,8 @@ export function FeedManager() {
         </div>
       )}
 
-      <MediaPickerModal 
-        isOpen={pickerOpen} 
-        onClose={() => setPickerOpen(false)} 
-        multiple={true}
-        onSelect={handleSelectExisting} 
-      />
+      <MediaPickerModal isOpen={feedPickerOpen} onClose={() => setFeedPickerOpen(false)} multiple={true} onSelect={handleFeedSelectExisting} />
+      <MediaPickerModal isOpen={projectPickerOpen} onClose={() => setProjectPickerOpen(false)} multiple={true} onSelect={handleProjectSelectExisting} />
     </div>
   )
 }
