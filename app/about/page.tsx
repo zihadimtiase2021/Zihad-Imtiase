@@ -2,7 +2,9 @@ import { PageShell } from '@/components/page-shell'
 import { MapPin, Calendar, GraduationCap, Camera, Code2, Globe, Zap, Layout, Monitor } from 'lucide-react'
 import { readSettingsData } from '@/lib/data'
 
-// Get dynamic icon based on string match
+// এই লাইনটি Next.js কে ক্যাশ করতে নিষেধ করবে (Real-time updates)
+export const dynamic = 'force-dynamic'
+
 function getStackIcon(name: string) {
   const n = name.toLowerCase();
   if (n.includes('react') || n.includes('next')) return Code2;
@@ -13,10 +15,8 @@ function getStackIcon(name: string) {
 }
 
 export default async function AboutPage() {
-  // Vercel Build Error Fix: Typecasting as any
   const siteSettings = (await readSettingsData()) as any
   
-  // Safe default fallbacks
   const aboutMedia: string[] = Array.isArray(siteSettings?.about?.media) ? siteSettings.about.media : []
   const primaryMedia = aboutMedia[0] ?? ''
   const extraMedia = aboutMedia.slice(1)
@@ -33,14 +33,12 @@ export default async function AboutPage() {
 
   return (
     <PageShell>
-      {/* Page header */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b border-border px-4 py-3">
         <h1 className="font-bold text-lg text-foreground">About</h1>
         <p className="text-xs text-muted-foreground">{siteSettings?.hero?.name || 'Zihad Imtiase'}</p>
       </div>
 
       <div className="border-b border-border">
-        {/* Primary media — Floating Card Style */}
         <div className="px-5 pt-6 pb-6">
           {primaryMedia ? (
             <div className="relative w-full max-w-md mx-auto overflow-hidden rounded-[2rem] border border-border shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] bg-muted group" style={{ aspectRatio: '5/7' }}>
@@ -61,7 +59,6 @@ export default async function AboutPage() {
           )}
         </div>
 
-        {/* Extra media */}
         {extraMedia.length > 0 && (
           <div className="flex gap-3 px-5 pb-2 -mt-14 relative z-30 overflow-x-auto scrollbar-none">
             {extraMedia.map((url, i) => (
@@ -80,7 +77,6 @@ export default async function AboutPage() {
         </div>
       </div>
 
-      {/* Intro section */}
       <div className="px-5 py-6 border-b border-border">
         {introText.split('\n').map((paragraph: string, idx: number) => (
           <p key={idx} className="text-sm text-foreground leading-relaxed mb-4 last:mb-0 whitespace-pre-wrap">{paragraph}</p>
@@ -93,7 +89,6 @@ export default async function AboutPage() {
         </div>
       </div>
 
-      {/* Values */}
       {values.length > 0 && (
         <div className="px-5 py-6 border-b border-border">
           <h2 className="font-bold text-base text-foreground mb-4">How I work</h2>
@@ -108,7 +103,6 @@ export default async function AboutPage() {
         </div>
       )}
 
-      {/* Tech stack */}
       {stack.length > 0 && (
         <div className="px-5 py-6 border-b border-border">
           <h2 className="font-bold text-base text-foreground mb-4">Tech stack</h2>
@@ -131,7 +125,6 @@ export default async function AboutPage() {
         </div>
       )}
 
-      {/* Timeline */}
       {timeline.length > 0 && (
         <div className="px-5 py-6">
           <h2 className="font-bold text-base text-foreground mb-5">Journey</h2>

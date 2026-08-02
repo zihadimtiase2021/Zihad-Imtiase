@@ -3,11 +3,12 @@ import { PageShell } from '@/components/page-shell'
 import { readSettingsData } from '@/lib/data'
 import { ContactClient } from '@/components/contact-client'
 
+// এই লাইনটি Next.js কে ক্যাশ করতে নিষেধ করবে (Real-time updates)
+export const dynamic = 'force-dynamic'
+
 export default async function ContactPage() {
-  // Vercel Build Error Fix: Typecasting as any
   const siteSettings = (await readSettingsData()) as any
   
-  // সেটিংসে ডাটা না থাকলে সেফ ফলব্যাক দেওয়া হলো
   const contactData = siteSettings?.contact || {
     email: '',
     phone: '',

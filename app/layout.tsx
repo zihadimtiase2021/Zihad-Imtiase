@@ -6,6 +6,9 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { readSettingsData } from '@/lib/data'
 import './globals.css'
 
+// এই লাইনটি Next.js কে ক্যাশ করতে নিষেধ করবে (Real-time updates)
+export const dynamic = 'force-dynamic'
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
@@ -75,7 +78,6 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-background text-foreground`}
       >
-        {/* Synchronous theme script using Next.js Script component */}
         <Script
           id="theme-script"
           strategy="beforeInteractive"
