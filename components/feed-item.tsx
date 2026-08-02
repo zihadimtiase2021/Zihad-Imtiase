@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music } from 'lucide-react'
+import { Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music, MoreHorizontal, Edit, Trash2, Pin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PostInteractions } from '@/components/post-interactions'
 
-type FeedType = 'article' | 'testimonial' | 'project'
+type FeedType = 'article' | 'testimonial' | 'project' | 'post' | 'general'
 
 interface FeedItemProps {
   id?: string
@@ -29,10 +29,12 @@ interface FeedItemProps {
   linkedProjectId?: string
 }
 
-const TYPE_META: Record<FeedType, { label: string; icon: React.ElementType; color: string }> = {
+const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   article: { label: 'Article', icon: BookOpen, color: '#f4a295' },
   testimonial: { label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
   project: { label: 'Project', icon: Briefcase, color: '#9db8e8' },
+  post: { label: 'Update', icon: BookOpen, color: '#9ca3af' },
+  general: { label: 'Update', icon: BookOpen, color: '#9ca3af' },
 }
 
 function getMediaType(url: string): 'image' | 'video' | 'audio' {
@@ -148,7 +150,7 @@ export function FeedItem({
   date,
   tag,
   initialLikes = 0,
-  replies = 0, // Fallback if no real comments exist initially
+  replies = 0,
   rating,
   projectTech = [],
   projectLink,
@@ -158,11 +160,34 @@ export function FeedItem({
   linkedProjectId,
 }: FeedItemProps) {
   const router = useRouter()
-  const meta = TYPE_META[type]
+  const meta = TYPE_META[type] || TYPE_META['general']
   const TypeIcon = meta.icon
   const detailHref = id ? `/feed/${id}` : undefined
 
-  // Merge legacy image + media array, dedup
+  // Admin Controls State
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Fetch admin status
+  useEffect(() => {
+    fetch('/api/auth/status')
+      .then(res => res.json())
+      .then(data => setIsAdmin(data.authenticated))
+      .catch(() => setIsAdmin(false))
+  }, [])
+
+  // Close admin menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const allMedia: string[] = (() => {
     const arr = media && media.length > 0 ? media : image ? [image] : []
     return Array.from(new Set(arr.filter(Boolean)))
@@ -173,6 +198,39 @@ export function FeedItem({
     e.stopPropagation()
     if (navigator.share && detailHref) {
       navigator.share({ title: title ?? 'Zihad Imtiase', url: window.location.origin + detailHref })
+    }
+  }
+
+  // --- Admin Action Handlers ---
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsMenuOpen(false)
+    // Add edit logic here
+    alert('Edit feature coming soon!')
+  }
+
+  const handlePin = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsMenuOpen(false)
+    // Add pin logic here
+    alert('Post pinned successfully!')
+  }
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsMenuOpen(false)
+    
+    if (confirm('Are you sure you want to delete this post?')) {
+      try {
+        const res = await fetch(`/api/feed?id=${id}`, { method: 'DELETE' })
+        if (res.ok) {
+          window.location.reload()
+        } else {
+          alert('Failed to delete post.')
+        }
+      } catch (error) {
+        alert('Error deleting post.')
+      }
     }
   }
 
@@ -187,11 +245,39 @@ export function FeedItem({
       </div>
 
       <div className="flex-1 min-w-0">
-        {/* Author + date */}
+        
+        {/* Author + Date + Admin Menu */}
         <div className="flex items-center gap-2 flex-wrap mb-0.5">
           <span className="font-semibold text-sm text-foreground">{author || 'Zihad Imtiase'}</span>
           {authorRole && <span className="text-xs text-muted-foreground">{authorRole}</span>}
           <span className="text-xs text-muted-foreground ml-auto shrink-0">{date}</span>
+
+          {/* Admin Menu (Three Dots) */}
+          {isAdmin && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsMenuOpen(!isMenuOpen) }}
+                className="p-1 rounded-full hover:bg-muted text-muted-foreground transition-colors ml-1"
+                aria-label="Admin options"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+
+              {isMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 w-36 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in zoom-in-95">
+                  <button onClick={handleEdit} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors text-left">
+                    <Edit size={14} /> Edit
+                  </button>
+                  <button onClick={handlePin} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors text-left">
+                    <Pin size={14} /> Pin to top
+                  </button>
+                  <button onClick={handleDelete} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors text-left">
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Type badge */}
@@ -271,7 +357,7 @@ export function FeedItem({
 
         {/* Real-time Interaction Row */}
         <div className="relative cursor-default mt-1" onClick={(e) => e.stopPropagation()}>
-          {/* Share and Read More — Absolute positioned to align seamlessly with Likes & Comments */}
+          {/* Share and Read More */}
           <div className="absolute top-4 right-0 flex items-center gap-5 pt-3 z-10 bg-background pl-2">
             {detailHref && (
               <Link
@@ -291,11 +377,10 @@ export function FeedItem({
             </button>
           </div>
 
-          {/* PostInteractions Component handles Likes, Comments & Identity */}
           <PostInteractions 
             postId={id || `post-${Date.now()}`} 
             initialLikes={initialLikes} 
-            initialComments={[]} // If you have real comments data, pass it here
+            initialComments={[]} 
           />
         </div>
 

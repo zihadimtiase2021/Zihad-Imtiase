@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { PenLine, X, Image as ImageIcon, Loader2, Send, FileText, MessageSquare, Briefcase } from 'lucide-react'
+import { PenLine, X, Image as ImageIcon, Loader2, Send, FileText, BookOpen, Quote, Briefcase } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type PostType = 'feed' | 'testimonial' | 'portfolio'
+type PostType = 'general' | 'article' | 'testimonial' | 'portfolio'
 
 export function QuickCompose() {
   const [isAuth, setIsAuth] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   
   // Form State
-  const [postType, setPostType] = useState<PostType>('feed')
+  const [postType, setPostType] = useState<PostType>('general')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [extraField, setExtraField] = useState('') // Client Name or Portfolio Tech
@@ -54,19 +54,21 @@ export function QuickCompose() {
 
   // Handle Publish
   async function handlePublish() {
-    if (!title.trim() && !content.trim()) return
+    if (!title.trim() && !content.trim() && mediaUrls.length === 0) return
     setIsPublishing(true)
 
     try {
       let endpoint = ''
       let payload: any = {}
 
-      if (postType === 'feed') {
+      if (postType === 'general' || postType === 'article') {
         endpoint = '/api/feed'
         payload = {
-          type: 'article', category: 'articles',
-          title: title || 'Quick Update', content,
-          excerpt: content.slice(0, 100) + '...',
+          type: postType === 'article' ? 'article' : 'post',
+          category: postType === 'article' ? 'articles' : 'general',
+          title: title || '', // Title is fully optional for general posts
+          content,
+          excerpt: content.slice(0, 100) + (content.length > 100 ? '...' : ''),
           media: mediaUrls,
           date: new Date().toISOString().split('T')[0]
         }
@@ -110,7 +112,7 @@ export function QuickCompose() {
 
   return (
     <>
-      {/* Floating Action Button (FAB) - Moved higher & new Icon */}
+      {/* Floating Action Button (FAB) */}
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-24 right-5 md:bottom-28 md:right-8 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-[0_8px_30px_rgba(244,162,149,0.3)] hover:shadow-[0_8px_30px_rgba(244,162,149,0.5)]"
@@ -124,21 +126,30 @@ export function QuickCompose() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             
-            {/* Header */}
+            {/* Header with Tooltip Icons */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-              <div className="flex gap-2 bg-muted p-1 rounded-xl">
+              <div className="flex gap-1.5 bg-muted p-1 rounded-xl">
                 {[
-                  { id: 'feed', icon: FileText, label: 'Post' },
-                  { id: 'testimonial', icon: MessageSquare, label: 'Review' },
+                  { id: 'general', icon: FileText, label: 'General Post' },
+                  { id: 'article', icon: BookOpen, label: 'Article' },
+                  { id: 'testimonial', icon: Quote, label: 'Testimonial' },
                   { id: 'portfolio', icon: Briefcase, label: 'Project' }
                 ].map(t => (
                   <button
                     key={t.id}
                     onClick={() => setPostType(t.id as PostType)}
-                    className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all', postType === t.id ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                    className={cn(
+                      'relative group flex items-center justify-center p-2 rounded-lg transition-all', 
+                      postType === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                    )}
                   >
-                    <t.icon size={13} className={postType === t.id ? 'text-[#f4a295]' : ''} />
-                    <span className="hidden sm:inline">{t.label}</span>
+                    <t.icon size={16} className={postType === t.id ? 'text-[#f4a295]' : ''} />
+                    
+                    {/* CSS Tooltip */}
+                    <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-background text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl">
+                      {t.label}
+                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-foreground" />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -151,7 +162,7 @@ export function QuickCompose() {
             <div className="p-5 flex flex-col gap-3">
               <input
                 type="text"
-                placeholder={postType === 'testimonial' ? "Review Summary / Title" : "Title (Optional but recommended)"}
+                placeholder={postType === 'testimonial' ? "Review Summary" : postType === 'portfolio' ? "Project Name" : "Title (Optional)"}
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 className="w-full bg-transparent text-foreground text-lg font-bold placeholder:text-muted-foreground/50 outline-none"
@@ -202,7 +213,7 @@ export function QuickCompose() {
 
               <button
                 onClick={handlePublish}
-                disabled={isPublishing || (!title.trim() && !content.trim())}
+                disabled={isPublishing || (!title.trim() && !content.trim() && mediaUrls.length === 0)}
                 className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all disabled:opacity-50 active:scale-95"
                 style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
               >
