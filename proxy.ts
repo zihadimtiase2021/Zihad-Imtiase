@@ -3,7 +3,8 @@ import { makeSessionToken, safeEqual, SESSION_COOKIE } from '@/lib/auth'
 
 const LOGIN_PAGE = '/login'
 
-export async function middleware(request: NextRequest) {
+// ✅ এখানে ফাংশনের নাম middleware থেকে পরিবর্তন করে proxy করা হয়েছে
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (!pathname.startsWith('/admin')) {
