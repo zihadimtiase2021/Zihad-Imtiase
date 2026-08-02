@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { PenLine, X, Image as ImageIcon, Video, Loader2, Send, FileText, BookOpen, Quote, Briefcase, Music } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { addFeedItem, updateFeedItem, addPortfolioProject, updatePortfolioProject } from '@/lib/data-actions'
 
 type PostType = 'general' | 'article' | 'testimonial' | 'portfolio'
 
@@ -16,6 +17,8 @@ export function QuickCompose() {
   const [isOpen, setIsOpen] = useState(false)
   
   // Form State
+  const [isEditing, setIsEditing] = useState(false)
+  const [editPostId, setEditPostId] = useState<string | null>(null)
   const [postType, setPostType] = useState<PostType>('general')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -27,7 +30,6 @@ export function QuickCompose() {
   
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Check if admin is logged in
   useEffect(() => {
     fetch('/api/auth/status')
       .then(res => res.json())
@@ -35,15 +37,49 @@ export function QuickCompose() {
       .catch(() => setIsAuth(false))
   }, [])
 
+  // Listen for Edit Event
+  useEffect(() => {
+    const handleEditEvent = (e: any) => {
+      const { id, type, title, content, extraField, mediaUrls } = e.detail
+      
+      let mappedType: PostType = 'general'
+      if (type === 'article') mappedType = 'article'
+      else if (type === 'testimonial') mappedType = 'testimonial'
+      else if (type === 'project' || type === 'portfolio') mappedType = 'portfolio'
+      
+      setPostType(mappedType)
+      setTitle(title || '')
+      setContent(content || '')
+      setExtraField(extraField || '')
+      
+      const mappedMedia = (mediaUrls || []).map((url: string) => {
+        const type = url.match(/\.(mp4|webm|mov)$/i) ? 'video' : url.match(/\.(mp3|wav|ogg)$/i) ? 'audio' : 'image'
+        return { url, type }
+      })
+      setMediaItems(mappedMedia)
+      setEditPostId(id)
+      setIsEditing(true)
+      setIsOpen(true)
+    }
+
+    window.addEventListener('edit-post', handleEditEvent)
+    return () => window.removeEventListener('edit-post', handleEditEvent)
+  }, [])
+
   if (!isAuth) return null
 
-  // Handle File (Image/Video/Audio) Upload
-  async function handleFileUpload(file: File) {
+  const closeAndReset = () => {
+    setIsOpen(false)
+    setTimeout(() => {
+      setIsEditing(false); setEditPostId(null); setPostType('general');
+      setTitle(''); setContent(''); setExtraField(''); setMediaItems([])
+    }, 200)
+  }
+
+  const handleFileUpload = async (file: File) => {
     setIsUploading(true)
     const fd = new FormData()
     fd.append('file', file)
-    
-    // ভিডিওর ক্ষেত্রে ওয়েবপি কনভার্ট করা যাবে না, তাই অরজিনাল ফরম্যাট রাখতে হবে
     const isVideoOrAudio = file.type.startsWith('video/') || file.type.startsWith('audio/')
     fd.append('format', isVideoOrAudio ? 'original' : 'webp')
 
@@ -51,12 +87,7 @@ export function QuickCompose() {
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const data = await res.json()
       if (data.success) {
-        const fileType: 'image' | 'video' | 'audio' = file.type.startsWith('video/') 
-          ? 'video' 
-          : file.type.startsWith('audio/') 
-          ? 'audio' 
-          : 'image'
-
+        const fileType = file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'image'
         setMediaItems(prev => [...prev, { url: data.url, type: fileType }])
       }
     } catch (e) {
@@ -66,59 +97,51 @@ export function QuickCompose() {
     }
   }
 
-  // Handle Publish
-  async function handlePublish() {
+  const handlePublish = async () => {
     if (!title.trim() && !content.trim() && mediaItems.length === 0) return
     setIsPublishing(true)
 
-    // Extract raw URLs for backend compatibility
     const mediaUrls = mediaItems.map(m => m.url)
+    let success = false
 
     try {
-      let endpoint = ''
-      let payload: any = {}
-
-      if (postType === 'general' || postType === 'article') {
-        endpoint = '/api/feed'
-        payload = {
-          type: postType === 'article' ? 'article' : 'post',
-          category: postType === 'article' ? 'articles' : 'general',
-          title: title || '',
-          content,
-          excerpt: content.slice(0, 100) + (content.length > 100 ? '...' : ''),
-          media: mediaUrls,
-          date: new Date().toISOString().split('T')[0]
-        }
-      } else if (postType === 'testimonial') {
-        endpoint = '/api/feed'
-        payload = {
-          type: 'testimonial', category: 'testimonials',
-          title: title || 'New Review', content,
-          clientName: extraField || 'Anonymous Client',
-          media: mediaUrls, rating: 5,
-          date: new Date().toISOString().split('T')[0]
-        }
-      } else if (postType === 'portfolio') {
-        endpoint = '/api/portfolio'
-        payload = {
-          title: title || 'New Project', description: content,
+      if (postType === 'portfolio') {
+        const payload: any = {
+          title: title || 'New Project', 
+          description: content,
           category: 'development',
-          image: mediaUrls[0] || '', images: mediaUrls,
+          image: mediaUrls[0] || '', 
+          images: mediaUrls,
           tech: extraField.split(',').map(t => t.trim()).filter(Boolean),
           featured: false
         }
+        const res = isEditing && editPostId 
+          ? await updatePortfolioProject(editPostId, payload)
+          : await addPortfolioProject(payload)
+        success = res.success
+      } else {
+        const payload: any = {
+          type: postType === 'article' ? 'article' : postType === 'testimonial' ? 'testimonial' : 'post',
+          category: postType === 'article' ? 'articles' : postType === 'testimonial' ? 'testimonials' : 'general',
+          title: title || '', 
+          body: content, 
+          author: postType === 'testimonial' ? extraField : 'Zihad Imtiase',
+          media: mediaUrls
+        }
+        
+        if (postType === 'testimonial') payload.rating = 5
+
+        const res = isEditing && editPostId
+          ? await updateFeedItem(editPostId, payload)
+          : await addFeedItem(payload)
+        success = res.success
       }
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (res.ok) {
-        setIsOpen(false)
-        setTitle(''); setContent(''); setExtraField(''); setMediaItems([])
+      if (success) {
+        closeAndReset()
         window.location.reload()
+      } else {
+        alert(`Failed to ${isEditing ? 'update' : 'publish'} post.`)
       }
     } catch (e) {
       console.error('Publish failed', e)
@@ -129,52 +152,52 @@ export function QuickCompose() {
 
   return (
     <>
-      {/* Floating Action Button (FAB) */}
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-24 right-5 md:bottom-28 md:right-8 z-40 w-14 h-14 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-[0_8px_30px_rgba(244,162,149,0.3)] hover:shadow-[0_8px_30px_rgba(244,162,149,0.5)]"
         style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+        aria-label="Create Post"
       >
         <PenLine size={24} strokeWidth={2.5} />
       </button>
 
-      {/* Compose Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
             
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-              <div className="flex gap-1.5 bg-muted p-1 rounded-xl">
-                {[
-                  { id: 'general', icon: FileText, label: 'General Post' },
-                  { id: 'article', icon: BookOpen, label: 'Article' },
-                  { id: 'testimonial', icon: Quote, label: 'Testimonial' },
-                  { id: 'portfolio', icon: Briefcase, label: 'Project' }
-                ].map(t => (
-                  <button
-                    key={t.id}
-                    onClick={() => setPostType(t.id as PostType)}
-                    className={cn(
-                      'relative group flex items-center justify-center p-2 rounded-lg transition-all', 
-                      postType === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
-                    )}
-                  >
-                    <t.icon size={16} className={postType === t.id ? 'text-[#f4a295]' : ''} />
-                    
-                    <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-background text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl">
-                      {t.label}
-                      <div className="absolute -top-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-foreground" />
-                    </div>
-                  </button>
-                ))}
+              <div className="flex items-center gap-3">
+                {/* Updated Header text */}
+                <span className="font-bold text-sm text-foreground ml-1">{isEditing ? 'Edit Post' : 'Select Category'}</span>
+                {!isEditing && (
+                  <div className="flex gap-1.5 bg-muted p-1 rounded-xl">
+                    {[
+                      { id: 'general', icon: FileText, label: 'General Post' },
+                      { id: 'article', icon: BookOpen, label: 'Article' },
+                      { id: 'testimonial', icon: Quote, label: 'Testimonial' },
+                      { id: 'portfolio', icon: Briefcase, label: 'Project' }
+                    ].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setPostType(t.id as PostType)}
+                        className={cn('relative group flex items-center justify-center p-2 rounded-lg transition-all', postType === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/50')}
+                      >
+                        <t.icon size={16} className={postType === t.id ? 'text-[#f4a295]' : ''} />
+                        {/* Category Tooltip */}
+                        <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-background text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl">
+                          {t.label}
+                          <div className="absolute -top-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-foreground" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <button onClick={() => setIsOpen(false)} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
+              <button onClick={closeAndReset} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
                 <X size={18} />
               </button>
             </div>
 
-            {/* Compose Area */}
             <div className="p-5 flex flex-col gap-3">
               <input
                 type="text"
@@ -192,7 +215,6 @@ export function QuickCompose() {
                 className="w-full bg-transparent text-foreground text-base placeholder:text-muted-foreground/50 outline-none resize-none leading-relaxed"
               />
 
-              {/* Extra Fields */}
               {(postType === 'testimonial' || postType === 'portfolio') && (
                 <input
                   type="text"
@@ -203,7 +225,6 @@ export function QuickCompose() {
                 />
               )}
 
-              {/* Media Previews (Supports Images & Videos) */}
               {mediaItems.length > 0 && (
                 <div className="flex gap-3 overflow-x-auto py-3 scrollbar-none">
                   {mediaItems.map((item, i) => (
@@ -228,7 +249,6 @@ export function QuickCompose() {
               )}
             </div>
 
-            {/* Footer Actions */}
             <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-muted/20">
               <div className="flex items-center gap-2">
                 <button onClick={() => fileRef.current?.click()} disabled={isUploading || isPublishing} className="p-2.5 rounded-full text-[#f4a295] hover:bg-[#f4a295]/10 transition-colors disabled:opacity-50 flex items-center gap-1.5">
@@ -244,7 +264,7 @@ export function QuickCompose() {
                 style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
               >
                 {isPublishing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                Post
+                {isEditing ? 'Save Changes' : 'Post'}
               </button>
             </div>
 
