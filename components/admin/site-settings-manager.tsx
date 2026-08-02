@@ -175,17 +175,18 @@ export function SiteSettingsManager() {
     saveSettings(next)
   }
 
-  function updateArray(section: 'about' | 'contact', field: string, index: number, key: string, val: any) {
+  // --- Dynamic Array Updaters (Fixed Types to include 'hero') ---
+  function updateArray(section: 'hero' | 'about' | 'contact', field: string, index: number, key: string, val: any) {
     let next = { ...settings }
     ;(next[section] as any)[field][index][key] = val
     setSettings(next)
   }
-  function addArrayItem(section: 'about' | 'contact', field: string, emptyItem: any) {
+  function addArrayItem(section: 'hero' | 'about' | 'contact', field: string, emptyItem: any) {
     let next = { ...settings }
     ;(next[section] as any)[field].push(emptyItem)
     setSettings(next)
   }
-  function removeArrayItem(section: 'about' | 'contact', field: string, index: number) {
+  function removeArrayItem(section: 'hero' | 'about' | 'contact', field: string, index: number) {
     let next = { ...settings }
     ;(next[section] as any)[field].splice(index, 1)
     setSettings(next)
@@ -332,10 +333,10 @@ export function SiteSettingsManager() {
                   {settings.hero.stats.map((st, i) => (
                     <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-muted/30 p-3 sm:p-2 rounded-xl border border-border relative">
                       <div className="flex items-center gap-2 flex-1 pr-8 sm:pr-0">
-                        <input value={st.value} onChange={(e) => { let next = {...settings}; next.hero.stats[i].value = e.target.value; setSettings(next) }} placeholder="50+" className="w-16 sm:w-20 px-3 py-1.5 rounded-lg bg-background border text-sm font-bold outline-none focus:border-[#9db8e8] min-w-0" />
-                        <input value={st.label} onChange={(e) => { let next = {...settings}; next.hero.stats[i].label = e.target.value; setSettings(next) }} placeholder="Label (e.g. Clients)" className="flex-1 px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#9db8e8] min-w-0" />
+                        <input value={st.value} onChange={(e) => updateArray('hero', 'stats', i, 'value', e.target.value)} placeholder="50+" className="w-16 sm:w-20 px-3 py-1.5 rounded-lg bg-background border text-sm font-bold outline-none focus:border-[#9db8e8] min-w-0" />
+                        <input value={st.label} onChange={(e) => updateArray('hero', 'stats', i, 'label', e.target.value)} placeholder="Label (e.g. Clients)" className="flex-1 px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#9db8e8] min-w-0" />
                       </div>
-                      <button onClick={() => { let next = {...settings}; next.hero.stats.splice(i,1); setSettings(next) }} className="absolute top-2 right-2 sm:static sm:top-auto sm:right-auto text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg shrink-0"><Trash2 size={15}/></button>
+                      <button onClick={() => removeArrayItem('hero', 'stats', i)} className="absolute top-2 right-2 sm:static sm:top-auto sm:right-auto text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg shrink-0"><Trash2 size={15}/></button>
                     </div>
                   ))}
                 </div>
