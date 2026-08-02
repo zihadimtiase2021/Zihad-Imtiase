@@ -136,6 +136,35 @@ export async function deletePortfolioProject(
   }
 }
 
+// ── Category mutations ────────────────────────────────────────────────────────
+
+export async function getCategories(): Promise<string[]> {
+  try {
+    const db = await getDb()
+    const docs = await db.collection('categories').find({}).sort({ name: 1 }).toArray()
+    return docs.map((d) => d.name as string)
+  } catch (error) {
+    console.error('[getCategories]', error)
+    return []
+  }
+}
+
+export async function addCategory(
+  name: string,
+): Promise<{ success: boolean; name?: string; error?: string }> {
+  if (!name) return { success: false, error: 'Category name is required' }
+  try {
+    const db = await getDb()
+    const existing = await db.collection('categories').findOne({ name })
+    if (existing) return { success: false, error: 'Category already exists' }
+    await db.collection('categories').insertOne({ name, createdAt: new Date().toISOString() })
+    return { success: true, name }
+  } catch (error) {
+    console.error('[addCategory]', error)
+    return { success: false, error: 'Failed to add category' }
+  }
+}
+
 // ── Settings mutation ─────────────────────────────────────────────────────────
 
 const SETTINGS_ID = 'site_settings'

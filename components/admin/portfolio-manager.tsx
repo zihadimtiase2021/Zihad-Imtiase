@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
+import { CreatableSelect } from './creatable-select'
+import { TechTagInput } from './tech-tag-input'
 
 interface ContentBlock {
   id: string
@@ -36,7 +38,7 @@ interface Project {
 const EMPTY: Omit<Project, 'id'> = {
   title: '',
   description: '',
-  category: 'development',
+  category: '',
   image: '',
   images: [],
   content: [],
@@ -46,8 +48,6 @@ const EMPTY: Omit<Project, 'id'> = {
   github: '',
   featured: false,
 }
-
-const CATEGORIES = ['development', 'webflow', 'design', 'marketing']
 
 function newBlockId() {
   return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -65,14 +65,19 @@ export function PortfolioManager() {
   const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [techInput, setTechInput] = useState('')
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
-  
+  const [categories, setCategories] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
+
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { fetchProjects() }, [])
+  useEffect(() => {
+    fetchProjects()
+    fetchCategories()
+    fetchTechSuggestions()
+  }, [])
 
   async function fetchProjects() {
     try {
@@ -86,6 +91,55 @@ export function PortfolioManager() {
     }
   }
 
+  async function fetchCategories() {
+    try {
+      const res = await fetch('/api/categories')
+      const data = await res.json()
+      setCategories(data.categories || [])
+    } catch {
+      // Non-fatal — categories will just be empty
+    }
+  }
+
+  async function fetchTechSuggestions() {
+    try {
+      const res = await fetch('/api/technologies')
+      const data = await res.json()
+      setTechSuggestions(data.technologies || [])
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  function mergeTechSuggestions(newTags: string[]) {
+    setTechSuggestions((prev) => {
+      const merged = new Set([...prev, ...newTags])
+      return Array.from(merged).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    })
+  }
+
+  async function handleCreateCategory(name: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setCategories((prev) => [...prev, name].sort())
+        addToast(`Category "${name}" created`)
+        return true
+      } else {
+        addToast(data.error || 'Failed to create category', false)
+        return false
+      }
+    } catch {
+      addToast('Failed to create category', false)
+      return false
+    }
+  }
+
   function set(key: string, value: unknown) {
     setForm((f) => ({ ...f, [key]: value }))
   }
@@ -93,7 +147,6 @@ export function PortfolioManager() {
   function openNew() {
     setEditingId(null)
     setForm(EMPTY)
-    setTechInput('')
     setResultKey('')
     setResultVal('')
     setShowForm(true)
@@ -102,8 +155,7 @@ export function PortfolioManager() {
 
   function openEdit(project: Project) {
     setEditingId(project.id)
-    setForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
-    setTechInput(Array.isArray(project.tech) ? project.tech.join(', ') : '')
+    setForm({ ...project, images: project.images ?? [], content: project.content ?? [], tech: project.tech ?? [] })
     const firstEntry = Object.entries(project.results ?? {})[0]
     setResultKey(firstEntry?.[0] ?? '')
     setResultVal(firstEntry?.[1] ?? '')
@@ -170,7 +222,7 @@ export function PortfolioManager() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = techInput.split(',').map((t) => t.trim()).filter(Boolean)
+    const techArray = (form.tech ?? []).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = form.images?.[0] ?? form.image ?? ''
     const payload = { ...form, tech: techArray, results, image: coverImage }
@@ -186,6 +238,9 @@ export function PortfolioManager() {
       if (res.ok) {
         const saved = await res.json()
         addToast(editingId ? 'Project updated' : 'Project added')
+
+        // Merge new tech tags into global suggestions
+        if (techArray.length > 0) mergeTechSuggestions(techArray)
 
         // Auto-sync: when creating a NEW project, publish a matching feed post
         if (!editingId) {
@@ -285,14 +340,13 @@ export function PortfolioManager() {
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                <div className="relative">
-                  <select value={form.category} onChange={(e) => set('category', e.target.value)} className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8">
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                    ))}
-                  </select>
-                  <Code size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
+                <CreatableSelect
+                  value={form.category}
+                  onChange={(val) => set('category', val)}
+                  categories={categories}
+                  onCreateCategory={handleCreateCategory}
+                  disabled={saving}
+                />
               </div>
               <div className="flex flex-col justify-end pb-0.5">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
@@ -313,15 +367,14 @@ export function PortfolioManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span></label>
-              <input type="text" value={techInput} onChange={(e) => setTechInput(e.target.value)} placeholder="React, Webflow, TailwindCSS, Stripe" className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-              {techInput.trim() && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {techInput.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-full text-[11px] bg-muted text-muted-foreground">{t}</span>
-                  ))}
-                </div>
-              )}
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
+              <TechTagInput
+                value={form.tech ?? []}
+                onChange={(tags) => set('tech', tags)}
+                suggestions={techSuggestions}
+                disabled={saving}
+                placeholder="React, TailwindCSS, Stripe..."
+              />
             </div>
 
             <div>
