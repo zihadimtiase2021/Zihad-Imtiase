@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils'
 import { PostInteractions } from '@/components/post-interactions'
 import { deleteFeedItem, deletePortfolioProject, updateFeedItem } from '@/lib/data-actions'
 
-type FeedType = 'article' | 'testimonial' | 'project' | 'post' | 'general'
+// 🟢 FIXED: Added 'portfolio' to FeedType union
+type FeedType = 'article' | 'testimonial' | 'project' | 'portfolio' | 'post' | 'general'
 
 interface FeedItemProps {
   id?: string
@@ -31,10 +32,12 @@ interface FeedItemProps {
   pinned?: boolean
 }
 
+// 🟢 FIXED: Added 'portfolio' meta definition to prevent fallback issues
 const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
   article: { label: 'Article', icon: BookOpen, color: '#f4a295' },
   testimonial: { label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
   project: { label: 'Project', icon: Briefcase, color: '#9db8e8' },
+  portfolio: { label: 'Project', icon: Briefcase, color: '#9db8e8' },
   post: { label: 'Update', icon: BookOpen, color: '#9ca3af' },
   general: { label: 'Update', icon: BookOpen, color: '#9ca3af' },
 }
