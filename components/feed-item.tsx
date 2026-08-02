@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Heart, MessageCircle, Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music } from 'lucide-react'
+import { Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { PostInteractions } from '@/components/post-interactions'
 
 type FeedType = 'article' | 'testimonial' | 'project'
 
@@ -147,7 +148,7 @@ export function FeedItem({
   date,
   tag,
   initialLikes = 0,
-  replies = 0,
+  replies = 0, // Fallback if no real comments exist initially
   rating,
   projectTech = [],
   projectLink,
@@ -157,8 +158,6 @@ export function FeedItem({
   linkedProjectId,
 }: FeedItemProps) {
   const router = useRouter()
-  const [liked, setLiked] = useState(false)
-  const [likes, setLikes] = useState(initialLikes)
   const meta = TYPE_META[type]
   const TypeIcon = meta.icon
   const detailHref = id ? `/feed/${id}` : undefined
@@ -168,13 +167,6 @@ export function FeedItem({
     const arr = media && media.length > 0 ? media : image ? [image] : []
     return Array.from(new Set(arr.filter(Boolean)))
   })()
-
-  function handleLike(e: React.MouseEvent) {
-    e.preventDefault()
-    e.stopPropagation()
-    setLiked((prev) => !prev)
-    setLikes((prev) => (liked ? prev - 1 : prev + 1))
-  }
 
   function handleShare(e: React.MouseEvent) {
     e.preventDefault()
@@ -229,7 +221,7 @@ export function FeedItem({
         )}
 
         {/* Body */}
-        <p className="text-sm text-muted-foreground leading-relaxed mb-3 line-clamp-3">{body}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-3 line-clamp-3 whitespace-pre-wrap">{body}</p>
 
         {/* Media grid */}
         {allMedia.length > 0 && (
@@ -277,44 +269,36 @@ export function FeedItem({
           </Link>
         )}
 
-        {/* Action row */}
-        <div className="flex items-center gap-6 mt-1">
-          <button
-            onClick={handleLike}
-            className={cn(
-              'flex items-center gap-1.5 text-xs transition-colors group',
-              liked ? 'text-rose-400' : 'text-muted-foreground hover:text-rose-400'
+        {/* Real-time Interaction Row */}
+        <div className="relative cursor-default mt-1" onClick={(e) => e.stopPropagation()}>
+          {/* Share and Read More — Absolute positioned to align seamlessly with Likes & Comments */}
+          <div className="absolute top-4 right-0 flex items-center gap-5 pt-3 z-10 bg-background pl-2">
+            {detailHref && (
+              <Link
+                href={detailHref}
+                className="text-xs font-semibold transition-colors hover:underline"
+                style={{ color: '#f4a295' }}
+              >
+                Read more →
+              </Link>
             )}
-            aria-label="Like"
-          >
-            <Heart size={15} className={cn('transition-transform group-active:scale-125', liked && 'fill-rose-400')} />
-            <span>{likes}</span>
-          </button>
-
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <MessageCircle size={15} />
-            <span>{replies}</span>
+            <button
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Share"
+              onClick={handleShare}
+            >
+              <Share2 size={15} />
+            </button>
           </div>
 
-          {detailHref && (
-            <Link
-              href={detailHref}
-              className="text-xs font-semibold transition-colors ml-1"
-              style={{ color: '#f4a295' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              Read more →
-            </Link>
-          )}
-
-          <button
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
-            aria-label="Share"
-            onClick={handleShare}
-          >
-            <Share2 size={15} />
-          </button>
+          {/* PostInteractions Component handles Likes, Comments & Identity */}
+          <PostInteractions 
+            postId={id || `post-${Date.now()}`} 
+            initialLikes={initialLikes} 
+            initialComments={[]} // If you have real comments data, pass it here
+          />
         </div>
+
       </div>
     </div>
   )
