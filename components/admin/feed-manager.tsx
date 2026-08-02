@@ -869,9 +869,63 @@ export function FeedManager() {
                           {block.type === 'paragraph' && <textarea value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Write a paragraph..." rows={3} className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none" />}
                           {block.type === 'image' && (
                             <div className="space-y-1.5">
-                              <input type="url" value={block.url ?? ''} onChange={(e) => updateBlock(block.id, { url: e.target.value })} placeholder="Image URL..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-                              <input type="text" value={block.caption ?? ''} onChange={(e) => updateBlock(block.id, { caption: e.target.value })} placeholder="Caption (optional)..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-                              {block.url && <div className="rounded-xl overflow-hidden bg-muted border border-border"><img src={block.url} alt={block.caption ?? ''} className="w-full max-h-32 object-cover" /></div>}
+                              {/* Media picker — choose from uploaded project images */}
+                              {(projectForm.images ?? []).length > 0 ? (
+                                <div className="relative">
+                                  <select
+                                    value={block.url ?? ''}
+                                    onChange={(e) => updateBlock(block.id, { url: e.target.value })}
+                                    className="w-full appearance-none px-3 py-2 pr-8 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                                  >
+                                    <option value="">— Select a project image —</option>
+                                    {(projectForm.images ?? []).map((url, idx) => (
+                                      <option key={url} value={url}>
+                                        Image {idx + 1}{idx === 0 ? ' (Cover)' : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <Image size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                                </div>
+                              ) : (
+                                /* Fallback: no gallery images yet — show thumbnail strip hint */
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-border bg-muted/30 text-xs text-muted-foreground">
+                                  <Image size={13} className="shrink-0" />
+                                  Upload images in the &quot;Project Images&quot; section above to pick one here.
+                                </div>
+                              )}
+                              {/* Visual thumbnail strip for quick reference */}
+                              {(projectForm.images ?? []).length > 0 && (
+                                <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                                  {(projectForm.images ?? []).map((url, idx) => (
+                                    <button
+                                      key={url}
+                                      type="button"
+                                      onClick={() => updateBlock(block.id, { url })}
+                                      title={`Image ${idx + 1}`}
+                                      className={cn(
+                                        'shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all',
+                                        block.url === url ? 'border-[#9db8e8] ring-1 ring-[#9db8e8]/40' : 'border-transparent hover:border-border',
+                                      )}
+                                    >
+                                      <img src={url} alt="" className="w-full h-full object-cover" />
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {/* Caption */}
+                              <input
+                                type="text"
+                                value={block.caption ?? ''}
+                                onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
+                                placeholder="Caption (optional)..."
+                                className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                              />
+                              {/* Preview */}
+                              {block.url && (
+                                <div className="rounded-xl overflow-hidden bg-muted border border-border">
+                                  <img src={block.url} alt={block.caption ?? ''} className="w-full max-h-32 object-cover" />
+                                </div>
+                              )}
                             </div>
                           )}
                           {block.type === 'divider' && <div className="flex items-center gap-2 py-2 text-muted-foreground"><div className="flex-1 h-px bg-border" /><span className="text-[10px] uppercase tracking-widest">divider</span><div className="flex-1 h-px bg-border" /></div>}
