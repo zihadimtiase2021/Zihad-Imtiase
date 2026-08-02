@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
+import { CreatableSelect } from './creatable-select'
 
 interface ContentBlock {
   id: string
@@ -36,7 +37,7 @@ interface Project {
 const EMPTY: Omit<Project, 'id'> = {
   title: '',
   description: '',
-  category: 'development',
+  category: '',
   image: '',
   images: [],
   content: [],
@@ -46,8 +47,6 @@ const EMPTY: Omit<Project, 'id'> = {
   github: '',
   featured: false,
 }
-
-const CATEGORIES = ['development', 'webflow', 'design', 'marketing']
 
 function newBlockId() {
   return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -68,11 +67,15 @@ export function PortfolioManager() {
   const [techInput, setTechInput] = useState('')
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
-  
+  const [categories, setCategories] = useState<string[]>([])
+
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { fetchProjects() }, [])
+  useEffect(() => {
+    fetchProjects()
+    fetchCategories()
+  }, [])
 
   async function fetchProjects() {
     try {
@@ -83,6 +86,38 @@ export function PortfolioManager() {
       addToast('Failed to load projects', false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchCategories() {
+    try {
+      const res = await fetch('/api/categories')
+      const data = await res.json()
+      setCategories(data.categories || [])
+    } catch {
+      // Non-fatal — categories will just be empty
+    }
+  }
+
+  async function handleCreateCategory(name: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setCategories((prev) => [...prev, name].sort())
+        addToast(`Category "${name}" created`)
+        return true
+      } else {
+        addToast(data.error || 'Failed to create category', false)
+        return false
+      }
+    } catch {
+      addToast('Failed to create category', false)
+      return false
     }
   }
 
@@ -285,14 +320,13 @@ export function PortfolioManager() {
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                <div className="relative">
-                  <select value={form.category} onChange={(e) => set('category', e.target.value)} className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8">
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                    ))}
-                  </select>
-                  <Code size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
+                <CreatableSelect
+                  value={form.category}
+                  onChange={(val) => set('category', val)}
+                  categories={categories}
+                  onCreateCategory={handleCreateCategory}
+                  disabled={saving}
+                />
               </div>
               <div className="flex flex-col justify-end pb-0.5">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
