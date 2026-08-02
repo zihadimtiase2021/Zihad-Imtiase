@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { NavSidebar } from '@/components/nav-sidebar'
 import { MobileNav } from '@/components/mobile-nav'
 import { MobileTopbar } from '@/components/mobile-topbar'
-import { Database, Rss, Briefcase, Settings2, LogOut, ChevronRight } from 'lucide-react'
+import { Database, Rss, Settings2, LogOut, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -13,18 +13,10 @@ const SECTIONS = [
   {
     id: 'feed',
     label: 'Feed Posts',
-    description: 'Testimonials & general posts',
+    description: 'Posts, testimonials & projects',
     href: '/admin/feed',
     icon: Rss,
     accent: '#f4a295',
-  },
-  {
-    id: 'portfolio',
-    label: 'Project',
-    description: 'Projects with gallery, rich content & feed sync',
-    href: '/admin/portfolio',
-    icon: Briefcase,
-    accent: '#9db8e8',
   },
   {
     id: 'site-settings',
