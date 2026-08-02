@@ -11,6 +11,8 @@ import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
+import { TechTagInput } from './tech-tag-input'
+import { CreatableSelect } from './creatable-select'
 
 // ─── Feed item types ──────────────────────────────────────────────────────────
 
@@ -100,8 +102,6 @@ const PROJECT_EMPTY: Omit<Project, 'id'> = {
   github: '',
   featured: false,
 }
-
-const PROJECT_CATEGORIES = ['development', 'webflow', 'design', 'marketing']
 
 function newBlockId() {
   return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -224,7 +224,9 @@ export function FeedManager() {
   const [projects, setProjects] = useState<Project[]>([])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [projectForm, setProjectForm] = useState<Omit<Project, 'id'>>(PROJECT_EMPTY)
-  const [techInput, setTechInput] = useState('')
+  const [techTags, setTechTags] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
+  const [categories, setCategories] = useState<string[]>([])
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
   const [galleryUploading, setGalleryUploading] = useState(false)
@@ -242,7 +244,7 @@ export function FeedManager() {
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { fetchItems(); fetchProjects() }, [])
+  useEffect(() => { fetchItems(); fetchProjects(); fetchTechSuggestions(); fetchCategories() }, [])
 
   // ── Data fetchers ──
 
@@ -266,6 +268,43 @@ export function FeedManager() {
     } catch { /* non-fatal */ }
   }
 
+  async function fetchTechSuggestions() {
+    try {
+      const res = await fetch('/api/technologies')
+      const data = await res.json()
+      setTechSuggestions(data.technologies || [])
+    } catch { /* non-fatal */ }
+  }
+
+  async function fetchCategories() {
+    try {
+      const res = await fetch('/api/categories')
+      const data = await res.json()
+      setCategories(data.categories || [])
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleCreateCategory(name: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setCategories((prev) => [...prev, name].sort())
+        addToast(`Category "${name}" created`)
+        return true
+      }
+      addToast(data.error || 'Failed to create category', false)
+      return false
+    } catch {
+      addToast('Failed to create category', false)
+      return false
+    }
+  }
+
   // ── Open/close helpers ──
 
   function openNew(kind: PostKind) {
@@ -273,7 +312,7 @@ export function FeedManager() {
     if (kind === 'project') {
       setEditingProjectId(null)
       setProjectForm(PROJECT_EMPTY)
-      setTechInput('')
+      setTechTags([])
       setResultKey('')
       setResultVal('')
     } else {
@@ -303,7 +342,7 @@ export function FeedManager() {
     setActiveKind('project')
     setEditingProjectId(project.id)
     setProjectForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
-    setTechInput(Array.isArray(project.tech) ? project.tech.join(', ') : '')
+    setTechTags(Array.isArray(project.tech) ? project.tech : [])
     const firstEntry = Object.entries(project.results ?? {})[0]
     setResultKey(firstEntry?.[0] ?? '')
     setResultVal(firstEntry?.[1] ?? '')
@@ -438,10 +477,9 @@ export function FeedManager() {
   async function handleProjectSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = techInput.split(',').map((t) => t.trim()).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = projectForm.images?.[0] ?? projectForm.image ?? ''
-    const payload = { ...projectForm, tech: techArray, results, image: coverImage }
+    const payload = { ...projectForm, tech: techTags, results, image: coverImage }
 
     try {
       const method = editingProjectId ? 'PUT' : 'POST'
@@ -466,7 +504,7 @@ export function FeedManager() {
             author: 'Zihad Imtiase',
             image: coverImage,
             media: projectForm.images ?? [],
-            tech: techArray,
+            tech: techTags,
             link: projectData.link ?? '',
             featured: projectData.featured ?? false,
             linkedProjectId: projectData.id ?? saved.project?.id ?? '',
@@ -725,18 +763,13 @@ export function FeedManager() {
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                  <div className="relative">
-                    <select
-                      value={projectForm.category}
-                      onChange={(e) => setProject('category', e.target.value)}
-                      className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8"
-                    >
-                      {PROJECT_CATEGORIES.map((c) => (
-                        <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                      ))}
-                    </select>
-                    <Code size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                  </div>
+                  <CreatableSelect
+                    value={projectForm.category}
+                    onChange={(val) => setProject('category', val)}
+                    categories={categories}
+                    onCreateCategory={handleCreateCategory}
+                    disabled={saving}
+                  />
                 </div>
                 <div className="flex flex-col justify-end pb-0.5">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
@@ -775,23 +808,13 @@ export function FeedManager() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span>
-                </label>
-                <input
-                  type="text"
-                  value={techInput}
-                  onChange={(e) => setTechInput(e.target.value)}
-                  placeholder="React, Webflow, TailwindCSS, Stripe"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
+                <TechTagInput
+                  value={techTags}
+                  onChange={setTechTags}
+                  suggestions={techSuggestions}
+                  disabled={saving}
                 />
-                {techInput.trim() && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {techInput.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                      <span key={t} className="px-2 py-0.5 rounded-full text-[11px] bg-muted text-muted-foreground">{t}</span>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div>

@@ -10,6 +10,7 @@ import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
 import { CreatableSelect } from './creatable-select'
+import { TechTagInput } from './tech-tag-input'
 
 interface ContentBlock {
   id: string
@@ -64,7 +65,8 @@ export function PortfolioManager() {
   const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [techInput, setTechInput] = useState('')
+  const [techTags, setTechTags] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
   const [categories, setCategories] = useState<string[]>([])
@@ -75,6 +77,7 @@ export function PortfolioManager() {
   useEffect(() => {
     fetchProjects()
     fetchCategories()
+    fetchTechSuggestions()
   }, [])
 
   async function fetchProjects() {
@@ -95,7 +98,17 @@ export function PortfolioManager() {
       const data = await res.json()
       setCategories(data.categories || [])
     } catch {
-      // Non-fatal — categories will just be empty
+      // Non-fatal
+    }
+  }
+
+  async function fetchTechSuggestions() {
+    try {
+      const res = await fetch('/api/technologies')
+      const data = await res.json()
+      setTechSuggestions(data.technologies || [])
+    } catch {
+      // Non-fatal
     }
   }
 
@@ -128,7 +141,7 @@ export function PortfolioManager() {
   function openNew() {
     setEditingId(null)
     setForm(EMPTY)
-    setTechInput('')
+    setTechTags([])
     setResultKey('')
     setResultVal('')
     setShowForm(true)
@@ -138,7 +151,7 @@ export function PortfolioManager() {
   function openEdit(project: Project) {
     setEditingId(project.id)
     setForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
-    setTechInput(Array.isArray(project.tech) ? project.tech.join(', ') : '')
+    setTechTags(Array.isArray(project.tech) ? project.tech : [])
     const firstEntry = Object.entries(project.results ?? {})[0]
     setResultKey(firstEntry?.[0] ?? '')
     setResultVal(firstEntry?.[1] ?? '')
@@ -205,10 +218,9 @@ export function PortfolioManager() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = techInput.split(',').map((t) => t.trim()).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = form.images?.[0] ?? form.image ?? ''
-    const payload = { ...form, tech: techArray, results, image: coverImage }
+    const payload = { ...form, tech: techTags, results, image: coverImage }
 
     try {
       const method = editingId ? 'PUT' : 'POST'
@@ -234,7 +246,7 @@ export function PortfolioManager() {
             author: 'Zihad Imtiase',
             image: coverImage,
             media: form.images ?? [],
-            tech: techArray,
+            tech: techTags,
             link: projectData.link ?? '',
             featured: projectData.featured ?? false,
             linkedProjectId: projectData.id ?? saved.project?.id ?? '',
@@ -347,15 +359,13 @@ export function PortfolioManager() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span></label>
-              <input type="text" value={techInput} onChange={(e) => setTechInput(e.target.value)} placeholder="React, Webflow, TailwindCSS, Stripe" className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
-              {techInput.trim() && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {techInput.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                    <span key={t} className="px-2 py-0.5 rounded-full text-[11px] bg-muted text-muted-foreground">{t}</span>
-                  ))}
-                </div>
-              )}
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
+              <TechTagInput
+                value={techTags}
+                onChange={setTechTags}
+                suggestions={techSuggestions}
+                disabled={saving}
+              />
             </div>
 
             <div>
