@@ -2,12 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Upload, Trash2, Image as ImageIcon, Film, Music, Loader2, X, Check,
-  User, FileText, Phone, Plus, Save, ImagePlus, Settings2, MapPin, Globe, Link2
+  Trash2, Image as ImageIcon, Film, Music, Loader2, X,
+  User, FileText, Phone, Plus, Save, ImagePlus, MapPin, Globe, Link2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { MediaPickerModal } from './media-picker-modal'
-import { ImageCropperModal } from './image-cropper-modal'
 import { MediaPicker } from '@/components/media-picker'
 
 // --- Interfaces ---
@@ -54,12 +52,6 @@ export function SiteSettingsManager() {
   const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
-  
-  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
-  const [pickingSlot, setPickingSlot] = useState<string | null>(null)
-  const [cropConfig, setCropConfig] = useState<{ file: File; slot: string; ratio: number } | null>(null)
-
   const [toasts, setToasts] = useState<Toast[]>([])
 
   useEffect(() => { fetchSettings() }, [])
@@ -128,45 +120,19 @@ export function SiteSettingsManager() {
     }))
   }
 
-  async function uploadActualFile(file: File, slot: string) {
-    setUploadingSlot(slot)
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('format', uploadFormat)
-
-    try {
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.success) {
-        let next = { ...settings }
-        if (slot === 'hero.coverMedia') next.hero.coverMedia = data.url
-        else if (slot === 'hero.profileMedia') next.hero.profileMedia = data.url
-        else if (slot === 'meta.favicon') next.meta.favicon = data.url
-        else if (slot === 'about.media') next.about.media = [...next.about.media, data.url]
-        
-        setSettings(next)
-        await saveSettings(next)
-      } else addToast(`Upload failed`, false)
-    } catch {
-      addToast(`Upload failed`, false)
-    } finally {
-      setUploadingSlot(null)
-    }
-  }
-
-  function handleFileIntent(file: File, slot: string, ratio: number) {
-    if (file.type.startsWith('image/')) setCropConfig({ file, slot, ratio })
-    else uploadActualFile(file, slot) 
-  }
-
-  function handleExistingMedia(urls: string[], slot: string) {
-    if (urls.length === 0) return
+  // --- Handlers for Reusable Media Picker ---
+  function updateMediaField(slot: 'hero.coverMedia' | 'hero.profileMedia' | 'meta.favicon', url: string) {
     let next = { ...settings }
-    if (slot === 'hero.coverMedia') next.hero.coverMedia = urls[0]
-    else if (slot === 'hero.profileMedia') next.hero.profileMedia = urls[0]
-    else if (slot === 'meta.favicon') next.meta.favicon = urls[0]
-    else if (slot === 'about.media') next.about.media = [...next.about.media, ...urls]
-    
+    if (slot === 'hero.coverMedia') next.hero.coverMedia = url
+    if (slot === 'hero.profileMedia') next.hero.profileMedia = url
+    if (slot === 'meta.favicon') next.meta.favicon = url
+    setSettings(next)
+    saveSettings(next)
+  }
+
+  function appendAboutMedia(urls: string[]) {
+    let next = { ...settings }
+    next.about.media = [...next.about.media, ...urls]
     setSettings(next)
     saveSettings(next)
   }
@@ -211,16 +177,9 @@ export function SiteSettingsManager() {
           <h2 className="text-xl font-bold text-foreground">Global Settings</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Change in one place, update everywhere.</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select value={uploadFormat} onChange={(e) => setUploadFormat(e.target.value as any)} className="text-xs px-3 py-2.5 rounded-xl border border-border bg-muted focus:outline-none focus:ring-1 focus:ring-brand/30">
-            <option value="webp">Auto WebP</option>
-            <option value="avif">Auto AVIF</option>
-            <option value="original">Original</option>
-          </select>
-          <button onClick={() => saveSettings()} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-[#1a1a1a] bg-[#f4a295] hover:opacity-90 disabled:opacity-50 transition-all active:scale-95 shrink-0">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Changes
-          </button>
-        </div>
+        <button onClick={() => saveSettings()} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-[#1a1a1a] bg-[#f4a295] hover:opacity-90 disabled:opacity-50 transition-all active:scale-95 shrink-0">
+          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Changes
+        </button>
       </div>
 
       <div className="flex p-1 bg-muted/50 border border-border rounded-2xl overflow-x-auto scrollbar-none">
@@ -246,24 +205,26 @@ export function SiteSettingsManager() {
                 {settings.hero.coverMedia ? (
                    mediaKind(settings.hero.coverMedia) === 'video' ? <video src={settings.hero.coverMedia} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={settings.hero.coverMedia} className="w-full h-full object-cover" alt="cover"/>
                 ) : <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={32} className="mb-2 opacity-50"/><span className="text-xs">No Cover Added</span></div>}
-                <div className="absolute top-3 right-3 flex gap-2 opacity-100 sm:opacity-0 group-hover/cover:opacity-100 transition-opacity">
-                   <button onClick={() => setPickingSlot('hero.coverMedia')} className="px-3 py-1.5 bg-black/60 text-white rounded-lg hover:bg-black text-xs font-semibold backdrop-blur">Gallery</button>
-                   <button onClick={() => document.getElementById('cov-up')?.click()} className="px-3 py-1.5 bg-black/60 text-white rounded-lg hover:bg-black text-xs font-semibold backdrop-blur">Upload</button>
-                   {settings.hero.coverMedia && <button onClick={() => deleteMedia('hero.coverMedia')} className="p-1.5 bg-red-500/80 text-white rounded-lg hover:bg-red-600"><Trash2 size={14}/></button>}
+                
+                <div className="absolute top-3 right-3 flex items-center gap-2 opacity-100 sm:opacity-0 group-hover/cover:opacity-100 transition-opacity">
+                   {/* 🟢 Reusable Media Picker for Cover */}
+                   <div className="bg-black/60 backdrop-blur rounded-full">
+                     <MediaPicker onSelect={(m) => updateMediaField('hero.coverMedia', m[0].url)} />
+                   </div>
+                   {settings.hero.coverMedia && <button onClick={() => deleteMedia('hero.coverMedia')} className="p-2.5 bg-red-500/80 text-white rounded-full hover:bg-red-600"><Trash2 size={16}/></button>}
                 </div>
-                <input id="cov-up" type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'hero.coverMedia', 16/9)} />
 
                 <div className="absolute -bottom-12 left-4 sm:left-6 group/avatar">
                   <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-card bg-muted overflow-hidden relative shadow-lg">
                     {settings.hero.profileMedia ? (
                        mediaKind(settings.hero.profileMedia) === 'video' ? <video src={settings.hero.profileMedia} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={settings.hero.profileMedia} className="w-full h-full object-cover" alt="profile"/>
                     ) : <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-background"><User size={32}/></div>}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/avatar:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity">
-                      <button onClick={() => document.getElementById('pro-up')?.click()} className="text-white hover:text-[#f4a295]"><Upload size={16}/></button>
-                      <button onClick={() => setPickingSlot('hero.profileMedia')} className="text-white hover:text-[#f4a295]"><ImagePlus size={16}/></button>
+                    
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
+                      {/* 🟢 Reusable Media Picker for Profile */}
+                      <MediaPicker onSelect={(m) => updateMediaField('hero.profileMedia', m[0].url)} />
                     </div>
                   </div>
-                  <input id="pro-up" type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'hero.profileMedia', 1)} />
                 </div>
               </div>
             </div>
@@ -278,7 +239,6 @@ export function SiteSettingsManager() {
                     <textarea rows={3} value={settings.hero.bio} onChange={(e) => setSettings({...settings, hero: {...settings.hero, bio: e.target.value}})} className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors resize-y min-w-0" />
                   </div>
                   
-                  {/* Hire Me Link added here */}
                   <div className="space-y-1.5 md:col-span-2 border-t border-border pt-3 mt-1">
                     <label className="text-xs text-foreground font-semibold uppercase flex items-center gap-1.5"><Link2 size={14} className="text-[#f4a295]"/> Hire Me Button Link</label>
                     <input type="text" value={settings.hero.hireMeLink} onChange={(e) => setSettings({...settings, hero: {...settings.hero, hireMeLink: e.target.value}})} placeholder="mailto:you@email.com OR https://wa.me/880..." className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors min-w-0" />
@@ -335,15 +295,9 @@ export function SiteSettingsManager() {
                           className="w-full bg-muted/50 border border-border px-3 py-2 rounded-xl text-sm outline-none focus:border-[#f4a295]"
                         />
                         
-                        <MediaPicker 
-                          onSelect={(media) => {
-                            if (media.length > 0) {
-                              let next = { ...settings }
-                              next.meta.favicon = media[0].url
-                              setSettings(next)
-                            }
-                          }} 
-                        />
+                        <div className="bg-muted border border-border rounded-full shrink-0">
+                          <MediaPicker onSelect={(m) => updateMediaField('meta.favicon', m[0].url)} />
+                        </div>
                       </div>
                       <p className="text-[10px] text-muted-foreground">Recommended: 512x512px (PNG/SVG).</p>
                     </div>
@@ -367,11 +321,13 @@ export function SiteSettingsManager() {
                    <button onClick={() => deleteMedia('about.media', i)} className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-lg hover:bg-red-600 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
                  </div>
                ))}
-               <div className="aspect-[5/7] flex flex-col gap-2">
-                 <button onClick={() => document.getElementById('abt-up')?.click()} className="flex-1 border-2 border-dashed border-border hover:border-[#9db8e8] hover:bg-muted/30 transition-colors rounded-xl flex flex-col items-center justify-center text-muted-foreground"><Upload size={18} className="mb-1"/><span className="text-xs font-medium">Upload</span></button>
-                 <button onClick={() => setPickingSlot('about.media')} className="flex-1 border-2 border-dashed border-border hover:border-[#9db8e8] hover:bg-muted/30 transition-colors rounded-xl flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={18} className="mb-1"/><span className="text-xs font-medium">Gallery</span></button>
+               
+               {/* 🟢 Reusable Media Picker for About Gallery */}
+               <div className="aspect-[5/7] flex items-center justify-center border-2 border-dashed border-border rounded-xl bg-muted/30">
+                  <div className="bg-background rounded-full shadow-sm border border-border">
+                    <MediaPicker onSelect={(m) => appendAboutMedia(m.map(x => x.url))} />
+                  </div>
                </div>
-               <input id="abt-up" type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => Array.from(e.target.files || []).forEach(f => handleFileIntent(f, 'about.media', 5/7))} />
              </div>
            </div>
 
@@ -479,28 +435,6 @@ export function SiteSettingsManager() {
         )}
 
       </div>
-
-      {/* --- MODALS --- */}
-      <ImageCropperModal
-        isOpen={cropConfig !== null}
-        file={cropConfig?.file || null}
-        aspectRatio={cropConfig?.ratio || 1}
-        onClose={() => setCropConfig(null)}
-        onCropConfirm={(cropped) => {
-          if(cropConfig) uploadActualFile(cropped, cropConfig.slot);
-          setCropConfig(null);
-        }}
-      />
-
-      <MediaPickerModal 
-        isOpen={pickingSlot !== null} 
-        onClose={() => setPickingSlot(null)} 
-        multiple={pickingSlot === 'about.media'}
-        onSelect={(urls) => {
-          if (pickingSlot) handleExistingMedia(urls, pickingSlot);
-          setPickingSlot(null);
-        }} 
-      />
     </div>
   )
 }

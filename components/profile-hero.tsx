@@ -20,13 +20,19 @@ export interface HeroData {
   location?: string
   joinDate?: string
   stats?: { value: string; label: string }[]
-  hireMeLink?: string // New dynamic link
+  hireMeLink?: string
+}
+
+// 🟢 Added ContactData interface to receive email from site settings
+export interface ContactData {
+  email?: string
 }
 
 interface ProfileHeroProps {
   activeFilter?: string
   onFilterChange?: (value: string) => void
   heroData?: HeroData
+  contactData?: ContactData // 🟢 Prop for contact data
 }
 
 function isVideo(url: string) { 
@@ -37,8 +43,10 @@ export function ProfileHero({
   activeFilter = 'all',
   onFilterChange,
   heroData = {},
+  contactData = {}, // 🟢 Default empty object
 }: ProfileHeroProps) {
-  // ফলব্যাক (Fallback)
+  
+  // Fallbacks
   const coverMedia = heroData.coverMedia || ''
   const profileMedia = heroData.profileMedia || ''
   const name = heroData.name || 'Zihad Imtiase'
@@ -52,6 +60,7 @@ export function ProfileHero({
     { value: '40+', label: 'Clients' },
     { value: '4+', label: 'Years' },
   ]
+  const email = contactData.email || '' // 🟢 Extracted email
 
   // Dynamic Hire Me Link & Icon Logic
   const hireMeLink = heroData.hireMeLink || '/contact'
@@ -89,10 +98,10 @@ export function ProfileHero({
           />
         )}
         
-        {/* লেফট-টু-রাইট সফট ব্র্যান্ড গ্রেডিয়েন্ট ওভারলে */}
+        {/* Soft Brand Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-[#f4a295]/30 via-background/10 to-background/60 pointer-events-none" />
 
-        {/* ডট ওভারলে প্যাটার্ন */}
+        {/* Dot Overlay Pattern */}
         <div
           className="absolute inset-0 opacity-[0.07] pointer-events-none mix-blend-overlay"
           style={{
@@ -103,7 +112,7 @@ export function ProfileHero({
       </div>
 
       <div className="px-4 pb-4">
-        {/* Avatar row - relative z-10 দেওয়া হয়েছে যাতে কভারের উপরে থাকে */}
+        {/* Avatar Row */}
         <div className="flex items-end justify-between -mt-9 mb-3 relative z-10">
           <div className="relative">
             {profileMedia ? (
@@ -157,7 +166,7 @@ export function ProfileHero({
           )}
         </div>
 
-        {/* Name + handle */}
+        {/* Name + Title */}
         <h1 className="font-bold text-xl text-foreground leading-tight">{name}</h1>
         <p className="text-sm text-muted-foreground mb-2">
           {title}
@@ -175,17 +184,34 @@ export function ProfileHero({
           </span>
         </p>
 
-        {/* Meta row */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-4">
-          <span className="flex items-center gap-1">
-            <MapPin size={11} style={{ color: '#f4a295' }} />
-            {location}
-          </span>
-          <span className="flex items-center gap-1">
-            <Calendar size={11} style={{ color: '#f4a295' }} />
-            {joinDate}
-          </span>
+        {/* Meta Row (Location & Join Date) */}
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-1">
+          {location && (
+            <span className="flex items-center gap-1">
+              <MapPin size={11} style={{ color: '#f4a295' }} />
+              {location}
+            </span>
+          )}
+          {joinDate && (
+            <span className="flex items-center gap-1">
+              <Calendar size={11} style={{ color: '#f4a295' }} />
+              {joinDate}
+            </span>
+          )}
         </div>
+
+        {/* 🟢 Dynamic Email Link */}
+        {email && (
+          <div className="mb-4">
+            <a
+              href={`mailto:${email}`}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-[#f4a295] transition-colors"
+            >
+              <Mail size={12} className="text-[#f4a295]" />
+              {email}
+            </a>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="flex gap-6 text-sm">
@@ -198,7 +224,7 @@ export function ProfileHero({
         </div>
       </div>
 
-      {/* Filter tab bar */}
+      {/* Filter Tabs */}
       <div className="flex border-t border-border">
         {TABS.map((tab) => {
           const active = activeFilter === tab.value
