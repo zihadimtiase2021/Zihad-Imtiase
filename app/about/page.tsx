@@ -80,56 +80,67 @@ export default async function AboutPage() {
         <p className="text-xs text-muted-foreground">Zihad Imtiase</p>
       </div>
 
-      {/* --- Media / Banner section --- */}
+      {/* --- Media / Banner section (Modern UI) --- */}
       <div className="border-b border-border">
-        {/* Primary media — full-width hero */}
-        {primaryMedia ? (
-          <div className="w-full overflow-hidden bg-black" style={{ aspectRatio: '16/9', maxHeight: 280 }}>
-            {isVideo(primaryMedia) ? (
-              <video
-                src={primaryMedia}
-                autoPlay
-                muted
-                loop
-                playsInline
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <img
-                src={primaryMedia}
-                alt="About section media"
-                className="w-full h-full object-cover"
-              />
-            )}
-          </div>
-        ) : (
-          /* Placeholder when no media is uploaded */
-          <div
-            className="h-32 w-full relative overflow-hidden flex flex-col items-center justify-center gap-2"
-            style={{ background: 'linear-gradient(135deg, #f4a29518 0%, #e8806f12 60%, #f4a29506 100%)' }}
-          >
+        {/* Primary media — Floating Card Style */}
+        <div className="px-5 pt-6 pb-6">
+          {primaryMedia ? (
+            <div 
+              className="relative w-full max-w-md mx-auto overflow-hidden rounded-[2rem] border border-border shadow-[0_20px_40px_-15px_rgba(0,0,0,0.2)] bg-muted group" 
+              style={{ aspectRatio: '5/7' }}
+            >
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#f4a295]/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 z-10 pointer-events-none" />
+              
+              {isVideo(primaryMedia) ? (
+                <video
+                  src={primaryMedia}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+              ) : (
+                <img
+                  src={primaryMedia}
+                  alt="About section media"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+              )}
+              
+              <div className="absolute inset-0 rounded-[2rem] ring-1 ring-inset ring-white/10 pointer-events-none z-20" />
+            </div>
+          ) : (
+            /* Placeholder when no media is uploaded */
             <div
-              className="absolute inset-0 opacity-[0.06]"
-              style={{
-                backgroundImage: 'radial-gradient(circle, #f4a295 1.5px, transparent 1.5px)',
-                backgroundSize: '24px 24px',
-              }}
-            />
-            <Camera size={22} className="relative z-10" style={{ color: '#f4a29560' }} />
-            <p className="relative z-10 text-[11px] text-muted-foreground/50">
-              Upload about media in Data Management → Site Settings
-            </p>
-          </div>
-        )}
+              className="w-full max-w-md mx-auto relative overflow-hidden flex flex-col items-center justify-center gap-4 rounded-[2rem] border-2 border-dashed border-border/60 bg-card shadow-sm"
+              style={{ aspectRatio: '5/7' }}
+            >
+              <div
+                className="absolute inset-0 opacity-[0.03]"
+                style={{
+                  backgroundImage: 'radial-gradient(circle, #f4a295 2px, transparent 2px)',
+                  backgroundSize: '24px 24px',
+                }}
+              />
+              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-muted relative z-10">
+                <Camera size={28} style={{ color: '#f4a295' }} />
+              </div>
+              <p className="relative z-10 text-xs text-muted-foreground text-center px-8 leading-relaxed">
+                Upload about media in <br/><span className="font-semibold text-foreground">Site Settings</span>
+              </p>
+            </div>
+          )}
+        </div>
 
-        {/* Extra media — horizontal scroll strip */}
+        {/* Extra media — Overlapping floating thumbnails */}
         {extraMedia.length > 0 && (
-          <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-none">
+          <div className="flex gap-3 px-5 pb-2 -mt-14 relative z-30 overflow-x-auto scrollbar-none">
             {extraMedia.map((url, i) => (
               <div
                 key={url + i}
-                className="shrink-0 rounded-xl overflow-hidden border border-border bg-muted"
-                style={{ width: 80, height: 60 }}
+                className="shrink-0 rounded-2xl overflow-hidden border-[4px] border-background bg-muted shadow-md hover:-translate-y-1 transition-transform duration-300"
+                style={{ width: 72, height: 72 }}
               >
                 {isVideo(url) ? (
                   <video src={url} muted autoPlay loop playsInline className="w-full h-full object-cover" />
@@ -142,10 +153,10 @@ export default async function AboutPage() {
         )}
 
         {/* Name + title */}
-        <div className="px-5 pt-4 pb-5">
-          <h2 className="font-bold text-xl text-foreground">Zihad Imtiase</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Frontend Developer &amp; Webflow Specialist
+        <div className="px-5 pb-6">
+          <h2 className="font-bold text-2xl text-foreground tracking-tight">Zihad Imtiase</h2>
+          <p className="text-sm font-medium mt-1 text-muted-foreground">
+            Frontend Developer &amp; <span style={{ color: '#f4a295' }}>Webflow Specialist</span>
           </p>
         </div>
       </div>

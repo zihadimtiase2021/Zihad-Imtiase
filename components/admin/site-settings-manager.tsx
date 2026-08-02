@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Upload, Trash2, Image, Film, Music, Loader2, X, Check,
-  Home, User, Info, Plus, Save, ImagePlus
+  Home, User, Info, Plus, Save, ImagePlus, Settings2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
+import { ImageCropperModal } from './image-cropper-modal'
 
 interface SiteSettings {
   hero: {
@@ -109,9 +110,9 @@ function MultiMediaSlot({
             const kind = mediaKind(url)
             return (
               <div key={url + i} className="relative rounded-xl overflow-hidden border border-border bg-muted group/m">
-                {kind === 'image' && <img src={url} alt="" className="w-full h-28 object-cover" />}
-                {kind === 'video' && <video src={url} className="w-full h-28 object-cover" muted autoPlay loop playsInline />}
-                {kind === 'audio' && <div className="w-full h-28 flex flex-col items-center justify-center gap-2 text-muted-foreground"><Music size={22} /><span className="text-[10px]">Audio</span></div>}
+                {kind === 'image' && <img src={url} alt="" className="w-full aspect-[5/7] object-cover" />}
+                {kind === 'video' && <video src={url} className="w-full aspect-[5/7] object-cover" muted autoPlay loop playsInline />}
+                {kind === 'audio' && <div className="w-full aspect-[5/7] flex flex-col items-center justify-center gap-2 text-muted-foreground"><Music size={22} /><span className="text-[10px]">Audio</span></div>}
                 <button type="button" onClick={() => onDelete(i)} className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover/m:opacity-100 transition-opacity hover:bg-black"><X size={11} /></button>
                 <div className="absolute bottom-1.5 left-1.5 text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-black/60 text-white pointer-events-none">{kind}</div>
               </div>
@@ -156,8 +157,13 @@ export function SiteSettingsManager() {
   const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
   const [pickingSlot, setPickingSlot] = useState<string | null>(null)
+  
+  // Crop states
+  const [pendingCropFile, setPendingCropFile] = useState<File | null>(null)
+
   const [toasts, setToasts] = useState<Toast[]>([])
 
   useEffect(() => { fetchSettings() }, [])
@@ -199,6 +205,8 @@ export function SiteSettingsManager() {
     setUploadingSlot(slot)
     const fd = new FormData()
     fd.append('file', file)
+    fd.append('format', uploadFormat) // Using the selected format
+
     try {
       const res = await fetch('/api/upload', { method: 'POST', body: fd })
       const data = await res.json()
@@ -248,7 +256,17 @@ export function SiteSettingsManager() {
     saveSettings(next)
   }
 
-  async function handleAboutAdd(file: File) {
+  // Intercept the file to crop if it's an image
+  function handleAboutAddIntent(file: File) {
+    if (file.type.startsWith('image/')) {
+      setPendingCropFile(file)
+    } else {
+      handleAboutUploadActual(file)
+    }
+  }
+
+  // The actual upload function after crop (or if video/audio)
+  async function handleAboutUploadActual(file: File) {
     const url = await uploadFile(file, 'about.media')
     if (!url) return
     const next: SiteSettings = { ...settings, about: { media: [...settings.about.media, url] } }
@@ -307,6 +325,30 @@ export function SiteSettingsManager() {
         ))}
       </div>
 
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-bold text-foreground">Site Settings</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Customize your profile & about page.</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 bg-muted/40 border border-border rounded-xl px-4 py-3 mb-6">
+        <Settings2 size={18} className="text-muted-foreground" />
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-foreground">Image Upload Format</p>
+          <p className="text-[10px] text-muted-foreground">Automatically compress images to this format upon upload.</p>
+        </div>
+        <select
+          value={uploadFormat}
+          onChange={(e) => setUploadFormat(e.target.value as any)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-brand/30"
+        >
+          <option value="webp">WebP (Recommended)</option>
+          <option value="avif">AVIF (Best Compression)</option>
+          <option value="original">Original Format</option>
+        </select>
+      </div>
+
       <Section icon={Home} title="Hero Media Banner & Avatar" description="Profile photo/video and cover banner shown on the home feed">
         <SingleMediaSlot
           label="Cover Banner" hint="Shown as the header banner — image or video"
@@ -358,12 +400,24 @@ export function SiteSettingsManager() {
         </form>
       </Section>
 
-      <Section icon={User} title="About Page Media" description="Images or videos shown in the photo section of the About page" accent="#9db8e8">
+      <Section icon={User} title="About Page Media" description="Images or videos shown in the photo section of the About page (Ratio strictly 5:7)" accent="#9db8e8">
         <MultiMediaSlot
           value={settings.about.media} uploading={uploadingSlot === 'about.media'}
-          onAdd={handleAboutAdd} onDelete={handleAboutDelete} onPickExisting={() => setPickingSlot('about.media')}
+          onAdd={handleAboutAddIntent} onDelete={handleAboutDelete} onPickExisting={() => setPickingSlot('about.media')}
         />
       </Section>
+
+      {/* Cropper Modal for About Page (5:7 ratio) */}
+      <ImageCropperModal
+        isOpen={pendingCropFile !== null}
+        file={pendingCropFile}
+        aspectRatio={5 / 7}
+        onClose={() => setPendingCropFile(null)}
+        onCropConfirm={(cropped) => {
+          setPendingCropFile(null)
+          handleAboutUploadActual(cropped)
+        }}
+      />
 
       <MediaPickerModal 
         isOpen={pickingSlot !== null} 

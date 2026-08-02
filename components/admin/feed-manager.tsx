@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload, Image, FileVideo,
   BookOpen, Quote, Briefcase, ChevronDown, Loader2, Star,
-  Music, Film, GripVertical, ImagePlus
+  Music, Film, GripVertical, ImagePlus, Settings2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
@@ -120,6 +120,7 @@ export function FeedManager() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
@@ -187,6 +188,8 @@ export function FeedManager() {
     for (const file of Array.from(files)) {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('format', uploadFormat) // Using the selected format
+
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const data = await res.json()
@@ -292,7 +295,7 @@ export function FeedManager() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-foreground">Feed Posts</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -307,6 +310,24 @@ export function FeedManager() {
           <Plus size={16} />
           New Post
         </button>
+      </div>
+
+      {/* Global Image Upload Format Selector */}
+      <div className="flex items-center gap-3 bg-muted/40 border border-border rounded-xl px-4 py-3 mb-6">
+        <Settings2 size={18} className="text-muted-foreground" />
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-foreground">Image Upload Format</p>
+          <p className="text-[10px] text-muted-foreground">Automatically compress images to this format upon upload.</p>
+        </div>
+        <select
+          value={uploadFormat}
+          onChange={(e) => setUploadFormat(e.target.value as any)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-brand/30"
+        >
+          <option value="webp">WebP (Recommended)</option>
+          <option value="avif">AVIF (Best Compression)</option>
+          <option value="original">Original Format</option>
+        </select>
       </div>
 
       {showForm && (

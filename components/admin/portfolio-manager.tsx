@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload, Image, ExternalLink,
-  Code, Loader2, Star, TrendingUp, AlignLeft, GripVertical, ImagePlus
+  Code, Loader2, Star, TrendingUp, AlignLeft, GripVertical, ImagePlus, Settings2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
@@ -61,6 +61,7 @@ export function PortfolioManager() {
   const [saving, setSaving] = useState(false)
   const [galleryUploading, setGalleryUploading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
@@ -126,6 +127,8 @@ export function PortfolioManager() {
     for (const file of Array.from(files)) {
       const fd = new FormData()
       fd.append('file', file)
+      fd.append('format', uploadFormat) // Compress format logic
+
       try {
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const data = await res.json()
@@ -237,7 +240,7 @@ export function PortfolioManager() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-foreground">Portfolio Projects</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -254,6 +257,23 @@ export function PortfolioManager() {
         </button>
       </div>
 
+      <div className="flex items-center gap-3 bg-muted/40 border border-border rounded-xl px-4 py-3 mb-6">
+        <Settings2 size={18} className="text-muted-foreground" />
+        <div className="flex-1">
+          <p className="text-xs font-semibold text-foreground">Image Upload Format</p>
+          <p className="text-[10px] text-muted-foreground">Automatically compress images to this format upon upload.</p>
+        </div>
+        <select
+          value={uploadFormat}
+          onChange={(e) => setUploadFormat(e.target.value as any)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-brand/30"
+        >
+          <option value="webp">WebP (Recommended)</option>
+          <option value="avif">AVIF (Best Compression)</option>
+          <option value="original">Original Format</option>
+        </select>
+      </div>
+
       {showForm && (
         <div ref={formRef} className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border" style={{ background: '#f4a29510' }}>
@@ -268,11 +288,7 @@ export function PortfolioManager() {
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
                 <div className="relative">
-                  <select
-                    value={form.category}
-                    onChange={(e) => set('category', e.target.value)}
-                    className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8"
-                  >
+                  <select value={form.category} onChange={(e) => set('category', e.target.value)} className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8">
                     {CATEGORIES.map((c) => (
                       <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
                     ))}
@@ -282,17 +298,8 @@ export function PortfolioManager() {
               </div>
               <div className="flex flex-col justify-end pb-0.5">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
-                <button
-                  type="button"
-                  onClick={() => set('featured', !form.featured)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all',
-                    form.featured ? 'border-transparent' : 'border-border text-muted-foreground'
-                  )}
-                  style={form.featured ? { backgroundColor: '#f4a29520', color: '#f4a295', borderColor: '#f4a29540' } : {}}
-                >
-                  <Star size={13} fill={form.featured ? '#f4a295' : 'none'} style={{ color: form.featured ? '#f4a295' : undefined }} />
-                  Featured
+                <button type="button" onClick={() => set('featured', !form.featured)} className={cn('flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-semibold transition-all', form.featured ? 'border-transparent' : 'border-border text-muted-foreground')} style={form.featured ? { backgroundColor: '#f4a29520', color: '#f4a295', borderColor: '#f4a29540' } : {}}>
+                  <Star size={13} fill={form.featured ? '#f4a295' : 'none'} style={{ color: form.featured ? '#f4a295' : undefined }} /> Featured
                 </button>
               </div>
             </div>
@@ -350,9 +357,7 @@ export function PortfolioManager() {
                   Project Images
                   <span className="ml-1 font-normal normal-case text-muted-foreground/70">— first image used as cover</span>
                 </label>
-                {galleryCount > 0 && (
-                  <span className="text-[11px] text-muted-foreground">{galleryCount} image{galleryCount !== 1 ? 's' : ''}</span>
-                )}
+                {galleryCount > 0 && <span className="text-[11px] text-muted-foreground">{galleryCount} image{galleryCount !== 1 ? 's' : ''}</span>}
               </div>
 
               {galleryCount > 0 && (
@@ -360,47 +365,22 @@ export function PortfolioManager() {
                   {(form.images ?? []).map((url, i) => (
                     <div key={url + i} className="relative group/img rounded-xl overflow-hidden bg-muted border border-border">
                       <img src={url} alt="" className="w-full h-20 object-cover" />
-                      {i === 0 && (
-                        <div className="absolute top-1 left-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/70 text-white">Cover</div>
-                      )}
-                      <button type="button" onClick={() => removeGalleryImage(i)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
-                        <X size={10} />
-                      </button>
+                      {i === 0 && <div className="absolute top-1 left-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/70 text-white">Cover</div>}
+                      <button type="button" onClick={() => removeGalleryImage(i)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"><X size={10} /></button>
                     </div>
                   ))}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-2">
-                <div
-                  className={cn(
-                    'border-2 border-dashed rounded-xl transition-colors cursor-pointer',
-                    galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30'
-                  )}
-                  onClick={() => !galleryUploading && galleryRef.current?.click()}
-                >
+                <div onClick={() => !galleryUploading && galleryRef.current?.click()} className={cn('border-2 border-dashed rounded-xl transition-colors cursor-pointer', galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30')}>
                   <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
-                    {galleryUploading ? (
-                      <Loader2 size={18} className="animate-spin text-[#f4a295]" />
-                    ) : (
-                      <>
-                        <Upload size={18} />
-                        <span className="text-xs">Upload New</span>
-                      </>
-                    )}
+                    {galleryUploading ? <Loader2 size={18} className="animate-spin text-[#f4a295]" /> : <><Upload size={18} /><span className="text-xs">Upload New</span></>}
                   </div>
                 </div>
-
-                <div
-                  className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
-                  onClick={() => setPickerOpen(true)}
-                >
-                  <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
-                    <ImagePlus size={18} />
-                    <span className="text-xs">Choose Existing</span>
-                  </div>
+                <div onClick={() => setPickerOpen(true)} className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30">
+                  <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground"><ImagePlus size={18} /><span className="text-xs">Choose Existing</span></div>
                 </div>
-
                 <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleGalleryUpload(e.target.files)} />
               </div>
             </div>
@@ -411,9 +391,7 @@ export function PortfolioManager() {
                 <div className="space-y-2 mb-2">
                   {(form.content ?? []).map((block) => (
                     <div key={block.id} className="flex gap-2 items-start group/block">
-                      <div className="mt-2.5 text-muted-foreground/40 hover:text-muted-foreground cursor-grab transition-colors">
-                        <GripVertical size={14} />
-                      </div>
+                      <div className="mt-2.5 text-muted-foreground/40 hover:text-muted-foreground cursor-grab transition-colors"><GripVertical size={14} /></div>
                       <div className="flex-1 min-w-0">
                         {block.type === 'heading' && <input type="text" value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Section heading..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />}
                         {block.type === 'paragraph' && <textarea value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Write a paragraph..." rows={3} className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none" />}
@@ -441,8 +419,7 @@ export function PortfolioManager() {
 
             <div className="flex gap-2 pt-1">
               <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60" style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}>
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {editingId ? 'Save changes' : 'Add project'}
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {editingId ? 'Save changes' : 'Add project'}
               </button>
               <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancel</button>
             </div>

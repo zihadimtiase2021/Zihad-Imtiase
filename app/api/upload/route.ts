@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { v2 as cloudinary } from 'cloudinary'
+import { v2 as cloudinary, UploadApiOptions } from 'cloudinary'
 import { isAuthenticated } from '@/lib/auth'
 
-// App Router route handlers stream the body
-export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Cloudinary কনফিগারেশন
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -20,80 +17,42 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData()
-    const file = formData.get('file') as File | null
+    const file = formData.get('file') as File
+    const targetFormat = formData.get('format') as string // 'webp' | 'avif' | 'original'
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    // Validate file type
-    const allowedTypes = [
-      'image/jpeg',
-      'image/jpg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml',
-      'video/mp4',
-      'video/webm',
-      'video/quicktime',
-      'audio/mpeg',
-      'audio/mp3',
-      'audio/ogg',
-      'audio/wav',
-      'audio/aac',
-      'audio/flac',
-      'audio/x-m4a',
-    ]
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
+    
+    // Check if the uploaded file is an image
+    const isImage = file.type.startsWith('image/')
 
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        {
-          error: `Invalid file type: "${file.type}". Allowed: images (JPEG, PNG, GIF, WebP), videos (MP4, WebM), and audio (MP3, OGG, WAV, AAC, FLAC).`,
-        },
-        { status: 400 },
-      )
+    const uploadOptions: UploadApiOptions = {
+      folder: 'zihad_portfolio_media',
+      resource_type: 'auto',
     }
 
-    // Validate file size (max 50 MB)
-    const maxSize = 50 * 1024 * 1024
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: 'File size exceeds the 50 MB limit.' },
-        { status: 400 },
-      )
+    // Apply format conversion and quality compression ONLY if it's an image
+    // and user didn't select 'original'
+    if (isImage && targetFormat && targetFormat !== 'original') {
+      uploadOptions.format = targetFormat
+      uploadOptions.quality = 'auto' // Cloudinary intelligent compression
     }
 
-    // File অবজেক্টটিকে Buffer এবং Base64 Data URI-তে রূপান্তর করা হচ্ছে
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    const fileUri = `data:${file.type};base64,${buffer.toString('base64')}`
-
-    // Cloudinary-তে আপলোড (১০০% Type-Safe Promise, যা বিল্ড এরর ব্লক করবে)
-    const result = await new Promise<{ secure_url: string }>((resolve, reject) => {
-      cloudinary.uploader.upload(
-        fileUri,
-        {
-          resource_type: 'auto',
-          folder: 'zihad_portfolio_media',
-        },
-        (error, result) => {
-          if (error || !result) {
-            return reject(error || new Error('Upload failed: No result returned.'))
-          }
-          // টাইপস্ক্রিপ্ট এরর ১০০% বাইপাস করার জন্য Type Assertion ব্যবহার করা হলো
-          resolve(result as { secure_url: string })
-        }
-      )
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+        if (error) reject(error)
+        else resolve(result)
+      })
+      stream.end(buffer)
     })
 
-    // সফলভাবে আপলোড হলে ক্লাউডের লাইভ URL রিটার্ন করা হবে
-    return NextResponse.json({ success: true, url: result.secure_url }, { status: 201 })
+    return NextResponse.json({ success: true, url: (result as any).secure_url })
   } catch (error) {
-    console.error('[upload] error:', error)
-    return NextResponse.json(
-      { error: 'File upload failed. Please check Cloudinary credentials and try again.' },
-      { status: 500 },
-    )
+    console.error('[Upload API Error]', error)
+    return NextResponse.json({ error: 'Failed to upload' }, { status: 500 })
   }
 }
