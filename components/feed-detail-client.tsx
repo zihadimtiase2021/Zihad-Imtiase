@@ -380,7 +380,7 @@ export function FeedDetailClient() {
           </Link>
         </div>
       )}
-      )}
+      )
     </PageShell>
   )
 }
