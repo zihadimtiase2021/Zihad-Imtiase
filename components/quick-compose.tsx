@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { PenLine, X, Image as ImageIcon, Video, Loader2, Send, FileText, BookOpen, Quote, Briefcase, Music } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { PenLine, X, Loader2, Send, FileText, BookOpen, Quote, Briefcase, Music } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { addFeedItem, updateFeedItem, addPortfolioProject, updatePortfolioProject } from '@/lib/data-actions'
+import { MediaPicker } from '@/components/media-picker'
 
 type PostType = 'general' | 'article' | 'testimonial' | 'portfolio'
 
@@ -25,10 +26,7 @@ export function QuickCompose() {
   const [extraField, setExtraField] = useState('')
   const [mediaItems, setMediaItems] = useState<MediaFile[]>([])
   
-  const [isUploading, setIsUploading] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
-  
-  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/auth/status')
@@ -74,27 +72,6 @@ export function QuickCompose() {
       setIsEditing(false); setEditPostId(null); setPostType('general');
       setTitle(''); setContent(''); setExtraField(''); setMediaItems([])
     }, 200)
-  }
-
-  const handleFileUpload = async (file: File) => {
-    setIsUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    const isVideoOrAudio = file.type.startsWith('video/') || file.type.startsWith('audio/')
-    fd.append('format', isVideoOrAudio ? 'original' : 'webp')
-
-    try {
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.success) {
-        const fileType = file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'image'
-        setMediaItems(prev => [...prev, { url: data.url, type: fileType }])
-      }
-    } catch (e) {
-      console.error('Upload failed', e)
-    } finally {
-      setIsUploading(false)
-    }
   }
 
   const handlePublish = async () => {
@@ -150,6 +127,25 @@ export function QuickCompose() {
     }
   }
 
+  // --- Dynamic Placeholders ---
+  const getTitlePlaceholder = () => {
+    switch (postType) {
+      case 'article': return "Article Title..."
+      case 'testimonial': return "Review Summary..."
+      case 'portfolio': return "Project Name..."
+      default: return "Title (Optional)..."
+    }
+  }
+
+  const getContentPlaceholder = () => {
+    switch (postType) {
+      case 'article': return "Write your article content here..."
+      case 'testimonial': return "What did the client say? (Testimonial)..."
+      case 'portfolio': return "Describe the project details and tech stack..."
+      default: return "What's happening? (General Update)..."
+    }
+  }
+
   return (
     <>
       <button
@@ -167,7 +163,6 @@ export function QuickCompose() {
             
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
               <div className="flex items-center gap-3">
-                {/* Updated Header text */}
                 <span className="font-bold text-sm text-foreground ml-1">{isEditing ? 'Edit Post' : 'Select Category'}</span>
                 {!isEditing && (
                   <div className="flex gap-1.5 bg-muted p-1 rounded-xl">
@@ -180,14 +175,13 @@ export function QuickCompose() {
                       <button
                         key={t.id}
                         onClick={() => setPostType(t.id as PostType)}
-                        className={cn('relative group flex items-center justify-center p-2 rounded-lg transition-all', postType === t.id ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-background/50')}
+                        className={cn(
+                          'relative flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-semibold transition-all', 
+                          postType === t.id ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-background/50'
+                        )}
                       >
-                        <t.icon size={16} className={postType === t.id ? 'text-[#f4a295]' : ''} />
-                        {/* Category Tooltip */}
-                        <div className="absolute -bottom-9 left-1/2 -translate-x-1/2 px-2.5 py-1.5 bg-foreground text-background text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50 shadow-xl">
-                          {t.label}
-                          <div className="absolute -top-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-b-foreground" />
-                        </div>
+                        <t.icon size={14} className={cn("mr-1.5", postType === t.id ? 'text-[#f4a295]' : '')} />
+                        <span className="hidden sm:inline">{t.label}</span>
                       </button>
                     ))}
                   </div>
@@ -201,18 +195,18 @@ export function QuickCompose() {
             <div className="p-5 flex flex-col gap-3">
               <input
                 type="text"
-                placeholder={postType === 'testimonial' ? "Review Summary" : postType === 'portfolio' ? "Project Name" : "Title (Optional)"}
+                placeholder={getTitlePlaceholder()}
                 value={title}
                 onChange={e => setTitle(e.target.value)}
-                className="w-full bg-transparent text-foreground text-lg font-bold placeholder:text-muted-foreground/50 outline-none"
+                className="w-full bg-transparent text-foreground text-lg font-bold placeholder:text-muted-foreground/50 outline-none transition-all"
               />
               
               <textarea
-                placeholder={postType === 'portfolio' ? "Describe the project..." : "What's happening?"}
+                placeholder={getContentPlaceholder()}
                 value={content}
                 onChange={e => setContent(e.target.value)}
                 rows={4}
-                className="w-full bg-transparent text-foreground text-base placeholder:text-muted-foreground/50 outline-none resize-none leading-relaxed"
+                className="w-full bg-transparent text-foreground text-base placeholder:text-muted-foreground/50 outline-none resize-none leading-relaxed transition-all"
               />
 
               {(postType === 'testimonial' || postType === 'portfolio') && (
@@ -228,7 +222,7 @@ export function QuickCompose() {
               {mediaItems.length > 0 && (
                 <div className="flex gap-3 overflow-x-auto py-3 scrollbar-none">
                   {mediaItems.map((item, i) => (
-                    <div key={i} className="relative shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-border bg-muted shadow-sm flex items-center justify-center">
+                    <div key={i} className="relative shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-border bg-muted shadow-sm flex items-center justify-center group">
                       {item.type === 'video' ? (
                         <video src={item.url} className="w-full h-full object-cover" />
                       ) : item.type === 'audio' ? (
@@ -250,12 +244,12 @@ export function QuickCompose() {
             </div>
 
             <div className="px-5 py-3 border-t border-border flex items-center justify-between bg-muted/20">
-              <div className="flex items-center gap-2">
-                <button onClick={() => fileRef.current?.click()} disabled={isUploading || isPublishing} className="p-2.5 rounded-full text-[#f4a295] hover:bg-[#f4a295]/10 transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                  {isUploading ? <Loader2 size={20} className="animate-spin" /> : <div className="flex items-center gap-1"><ImageIcon size={18} /><Video size={18} /></div>}
-                </button>
-                <input type="file" ref={fileRef} accept="image/*,video/mp4,video/webm,video/quicktime,audio/*" className="hidden" onChange={e => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
-              </div>
+              
+              {/* 🟢 Reusable Media Picker Integration */}
+              <MediaPicker 
+                disabled={isPublishing}
+                onSelect={(newItems) => setMediaItems(prev => [...prev, ...newItems])} 
+              />
 
               <button
                 onClick={handlePublish}
