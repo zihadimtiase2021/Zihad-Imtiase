@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, Calendar, MessageCircle } from 'lucide-react'
+import { MapPin, Calendar, MessageCircle, Mail, Briefcase } from 'lucide-react'
 
 const TABS = [
   { label: 'All', value: 'all' },
@@ -20,6 +20,7 @@ export interface HeroData {
   location?: string
   joinDate?: string
   stats?: { value: string; label: string }[]
+  hireMeLink?: string // Added hireMeLink typing
 }
 
 interface ProfileHeroProps {
@@ -37,7 +38,7 @@ export function ProfileHero({
   onFilterChange,
   heroData = {},
 }: ProfileHeroProps) {
-  // ফলব্যাক (Fallback) বা ডিফল্ট ভ্যালু সেট করা হচ্ছে যাতে ডেটা না থাকলেও সাইট ভেঙে না যায়
+  // ফলব্যাক (Fallback) বা ডিফল্ট ভ্যালু সেট করা হচ্ছে
   const coverMedia = heroData.coverMedia || ''
   const profileMedia = heroData.profileMedia || ''
   const name = heroData.name || 'Zihad Imtiase'
@@ -51,6 +52,17 @@ export function ProfileHero({
     { value: '40+', label: 'Clients' },
     { value: '4+', label: 'Years' },
   ]
+  
+  // Dynamic Hire Me Link & Icon Logic
+  const hireMeLink = heroData.hireMeLink || '/contact'
+  const isMail = hireMeLink.startsWith('mailto:')
+  const isWhatsApp = hireMeLink.includes('wa.me') || hireMeLink.includes('whatsapp')
+  
+  // Choose Icon dynamically based on the link
+  const HireIcon = isMail ? Mail : isWhatsApp ? MessageCircle : Briefcase
+
+  // Check if link is external or internal (like /contact)
+  const isExternal = hireMeLink.startsWith('http') || hireMeLink.startsWith('mailto:')
 
   return (
     <div className="border-b border-border">
@@ -122,14 +134,28 @@ export function ProfileHero({
             <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
           </div>
 
-          <Link
-            href="/contact"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
-            style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-          >
-            <MessageCircle size={14} />
-            Hire Me
-          </Link>
+          {/* Dynamic Hire Me Button */}
+          {isExternal ? (
+            <a
+              href={hireMeLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+            >
+              <HireIcon size={14} />
+              Hire Me
+            </a>
+          ) : (
+            <Link
+              href={hireMeLink}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95"
+              style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+            >
+              <HireIcon size={14} />
+              Hire Me
+            </Link>
+          )}
         </div>
 
         {/* Name + handle */}
@@ -139,7 +165,7 @@ export function ProfileHero({
         </p>
 
         {/* Bio */}
-        <p className="text-sm text-foreground leading-relaxed mb-3">
+        <p className="text-sm text-foreground leading-relaxed mb-3 whitespace-pre-wrap">
           {bio}{' '}
           <span className="text-muted-foreground inline-block mt-1">
             {tags.map((t, idx) => (

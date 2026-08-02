@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { ThemeProvider } from '@/components/theme-provider'
+import { readSettingsData } from '@/lib/data'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -13,42 +14,50 @@ const jetbrainsMono = JetBrains_Mono({
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://zihadimtiase.com'
 
-export const metadata: Metadata = {
-  metadataBase: new URL(BASE_URL),
-  title: {
-    default: 'Zihad Imtiase — Frontend & Webflow Developer',
-    template: '%s | Zihad Imtiase',
-  },
-  description:
-    'Frontend Web Developer and Webflow specialist crafting high-converting websites. Based in Dhaka, Bangladesh.',
-  keywords: [
-    'frontend developer',
-    'webflow developer',
-    'react',
-    'landing page',
-    'web design',
-    'Bangladesh',
-  ],
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: BASE_URL,
-    siteName: 'Zihad Imtiase',
-    title: 'Zihad Imtiase — Frontend & Webflow Developer',
-    description:
-      'Frontend Web Developer and Webflow specialist crafting high-converting websites.',
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Zihad Imtiase — Frontend & Webflow Developer',
-    description:
-      'Frontend Web Developer and Webflow specialist crafting high-converting websites.',
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true },
-  },
+// Server-side Dynamic Metadata Generation
+export async function generateMetadata(): Promise<Metadata> {
+  const siteSettings = (await readSettingsData()) as any
+  const meta = siteSettings?.meta || {}
+  
+  const title = meta.title || 'Zihad Imtiase — Frontend & Webflow Developer'
+  const description = meta.description || 'Frontend Web Developer and Webflow specialist crafting high-converting websites. Based in Dhaka, Bangladesh.'
+  const faviconUrl = meta.favicon || undefined
+
+  return {
+    metadataBase: new URL(BASE_URL),
+    title: {
+      default: title,
+      template: `%s | ${title.split('—')[0].trim()}`,
+    },
+    description: description,
+    keywords: [
+      'frontend developer',
+      'webflow developer',
+      'react',
+      'landing page',
+      'web design',
+      'Bangladesh',
+    ],
+    icons: faviconUrl ? { icon: faviconUrl, shortcut: faviconUrl, apple: faviconUrl } : undefined,
+    openGraph: {
+      type: 'website',
+      locale: 'en_US',
+      url: BASE_URL,
+      siteName: title.split('—')[0].trim(),
+      title: title,
+      description: description,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: title,
+      description: description,
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true },
+    },
+  }
 }
 
 export const viewport: Viewport = {
