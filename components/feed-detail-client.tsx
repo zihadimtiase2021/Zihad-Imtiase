@@ -46,6 +46,8 @@ interface Project {
   featured: boolean
 }
 
+interface RelatedProject extends Project {}
+
 const TYPE_META = {
   article: { label: 'Article', icon: BookOpen, color: '#f4a295' },
   testimonial: { label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
@@ -57,6 +59,7 @@ export function FeedDetailClient() {
   const router = useRouter()
   const [item, setItem] = useState<FeedItemData | null>(null)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
+  const [relatedProjects, setRelatedProjects] = useState<RelatedProject[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -70,7 +73,17 @@ export function FeedDetailClient() {
         // fetch linked project if present
         if (data.linkedProjectId) {
           const pRes = await fetch(`/api/portfolio/${data.linkedProjectId}`)
-          if (pRes.ok) setLinkedProject(await pRes.json())
+          if (pRes.ok) {
+            const project = await pRes.json()
+            setLinkedProject(project)
+
+            // fetch related projects by same category
+            const relRes = await fetch(`/api/portfolio/category/${project.category}?exclude=${data.linkedProjectId}`)
+            if (relRes.ok) {
+              const relData = await relRes.json()
+              setRelatedProjects(relData.projects || [])
+            }
+          }
         }
       } catch {
         router.push('/')
@@ -259,8 +272,65 @@ export function FeedDetailClient() {
         />
       </article>
 
-      {/* Linked project card */}
+      {/* View Full Project Details button */}
       {linkedProject && (
+        <div className="px-5 py-4">
+          <Link
+            href={`/portfolio/${linkedProject.id}`}
+            className="w-full py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 active:scale-95 flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+          >
+            View Full Project Details
+            <span aria-hidden>→</span>
+          </Link>
+        </div>
+      )}
+
+      {/* Related projects by category */}
+      {relatedProjects.length > 0 && (
+        <div className="px-5 pb-8">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            More {linkedProject?.category || 'Projects'}
+          </p>
+          <div className="space-y-3">
+            {relatedProjects.map((proj) => (
+              <Link
+                key={proj.id}
+                href={`/portfolio/${proj.id}`}
+                className="block rounded-2xl border border-border bg-card hover:border-[#f4a295]/40 transition-colors overflow-hidden group"
+              >
+                {proj.image && (
+                  <div className="w-full h-32 overflow-hidden bg-muted">
+                    <img
+                      src={proj.image}
+                      alt={proj.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  </div>
+                )}
+                <div className="p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      className="text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize"
+                      style={{ backgroundColor: '#f4a29520', color: '#f4a295' }}
+                    >
+                      {proj.category}
+                    </span>
+                    {proj.featured && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Featured</span>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-sm text-foreground mb-1">{proj.title}</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{proj.description}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Original linked project card — keep if user hasn't navigated yet */}
+      {linkedProject && relatedProjects.length === 0 && (
         <div className="px-5 pb-8">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
             Related Project
@@ -309,6 +379,7 @@ export function FeedDetailClient() {
             </div>
           </Link>
         </div>
+      )}
       )}
     </PageShell>
   )

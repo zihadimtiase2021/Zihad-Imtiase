@@ -1,15 +1,13 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Plus, Hash } from 'lucide-react'
+import { X, Plus, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface TechTagInputProps {
-  /** Controlled array of current tags */
   value: string[]
   onChange: (tags: string[]) => void
-  /** Global suggestions fetched from the DB */
-  suggestions: string[]
+  suggestions?: string[]
   disabled?: boolean
   placeholder?: string
 }
@@ -17,44 +15,36 @@ interface TechTagInputProps {
 export function TechTagInput({
   value,
   onChange,
-  suggestions,
-  disabled,
-  placeholder = 'Add technology...',
+  suggestions = [],
+  disabled = false,
+  placeholder = 'Type a technology...',
 }: TechTagInputProps) {
   const [inputValue, setInputValue] = useState('')
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [highlightIndex, setHighlightIndex] = useState(-1)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const trimmed = inputValue.trim()
+  const lowerTrimmed = trimmed.toLowerCase()
 
-  // Suggestions = global suggestions that are NOT already added, filtered by current input
-  const filtered = suggestions.filter(
-    (s) =>
-      !value.some((v) => v.toLowerCase() === s.toLowerCase()) &&
-      (trimmed === '' || s.toLowerCase().includes(trimmed.toLowerCase())),
-  )
+  const filtered = trimmed
+    ? suggestions.filter(
+        (s) =>
+          s.toLowerCase().includes(lowerTrimmed) &&
+          !value.some((v) => v.toLowerCase() === s.toLowerCase()),
+      )
+    : suggestions.filter(
+        (s) => !value.some((v) => v.toLowerCase() === s.toLowerCase()),
+      )
 
-  const showCreate =
-    trimmed.length > 0 &&
-    !value.some((v) => v.toLowerCase() === trimmed.toLowerCase()) &&
-    !suggestions.some((s) => s.toLowerCase() === trimmed.toLowerCase())
+  const showDropdown = open && (filtered.length > 0 || trimmed.length > 0)
+  const exactMatch = suggestions.some((s) => s.toLowerCase() === lowerTrimmed)
+  const canCreate = trimmed.length > 0 && !value.some((v) => v.toLowerCase() === lowerTrimmed)
 
-  const dropdownItems = showCreate
-    ? [{ type: 'create' as const, label: trimmed }, ...filtered.map((s) => ({ type: 'suggest' as const, label: s }))]
-    : filtered.map((s) => ({ type: 'suggest' as const, label: s }))
-
-  // Reset highlight when dropdown items change
-  useEffect(() => {
-    setHighlightIndex(-1)
-  }, [inputValue])
-
-  // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
+        setOpen(false)
       }
     }
     document.addEventListener('mousedown', handleClick)
@@ -63,93 +53,82 @@ export function TechTagInput({
 
   const addTag = useCallback(
     (tag: string) => {
-      const clean = tag.trim()
-      if (!clean) return
-      if (value.some((v) => v.toLowerCase() === clean.toLowerCase())) return
-      onChange([...value, clean])
+      const normalized = tag.trim()
+      if (!normalized) return
+      if (value.some((v) => v.toLowerCase() === normalized.toLowerCase())) return
+      onChange([...value, normalized])
       setInputValue('')
-      setDropdownOpen(false)
-      setHighlightIndex(-1)
+      setOpen(true)
       inputRef.current?.focus()
     },
     [value, onChange],
   )
 
-  function removeTag(index: number) {
-    onChange(value.filter((_, i) => i !== index))
-    inputRef.current?.focus()
-  }
+  const removeTag = useCallback(
+    (tag: string) => {
+      onChange(value.filter((v) => v !== tag))
+    },
+    [value, onChange],
+  )
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
 
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      if (highlightIndex >= 0 && dropdownItems[highlightIndex]) {
-        addTag(dropdownItems[highlightIndex].label)
-      } else if (trimmed) {
+      if (canCreate) {
         addTag(trimmed)
+      } else if (filtered.length === 1) {
+        addTag(filtered[0])
       }
       return
     }
 
     if (e.key === 'Backspace' && inputValue === '' && value.length > 0) {
-      removeTag(value.length - 1)
-      return
-    }
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setHighlightIndex((i) => Math.min(i + 1, dropdownItems.length - 1))
-      return
-    }
-
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setHighlightIndex((i) => Math.max(i - 1, -1))
+      removeTag(value[value.length - 1])
       return
     }
 
     if (e.key === 'Escape') {
-      setDropdownOpen(false)
-      setInputValue('')
+      setOpen(false)
     }
   }
 
-  const showDropdown = dropdownOpen && (dropdownItems.length > 0)
-
   return (
     <div ref={containerRef} className="relative">
-      {/* Tag container + inline input */}
+      {/* Tag container / input area */}
       <div
-        className={cn(
-          'flex flex-wrap gap-1.5 min-h-[44px] px-2.5 py-2 rounded-xl border border-border bg-background transition-all cursor-text',
-          !disabled && 'focus-within:ring-2 focus-within:ring-brand/30 focus-within:border-brand',
-          disabled && 'opacity-50 pointer-events-none',
-        )}
         onClick={() => {
           if (!disabled) {
+            setOpen(true)
             inputRef.current?.focus()
-            setDropdownOpen(true)
           }
         }}
+        className={cn(
+          'min-h-[42px] w-full flex flex-wrap gap-1.5 px-3 py-2 rounded-xl border border-border bg-background transition-all cursor-text',
+          open && 'ring-2 ring-brand/30 border-brand',
+          disabled && 'opacity-50 cursor-not-allowed',
+        )}
       >
-        {value.map((tag, i) => (
+        {value.map((tag) => (
           <span
-            key={tag + i}
-            className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-[11px] font-medium bg-muted border border-border text-foreground"
+            key={tag}
+            className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-0.5 rounded-full text-xs font-medium"
+            style={{ backgroundColor: '#f4a29518', color: '#f4a295', border: '1px solid #f4a29530' }}
           >
-            <Hash size={9} className="shrink-0 text-muted-foreground" />
             {tag}
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={(e) => { e.stopPropagation(); removeTag(i) }}
-              className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              aria-label={`Remove ${tag}`}
-            >
-              <X size={9} />
-            </button>
+            {!disabled && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeTag(tag)
+                }}
+                className="w-3.5 h-3.5 rounded-full flex items-center justify-center hover:bg-[#f4a295]/20 transition-colors"
+              >
+                <X size={9} />
+              </button>
+            )}
           </span>
         ))}
 
@@ -157,56 +136,78 @@ export function TechTagInput({
           ref={inputRef}
           type="text"
           value={inputValue}
-          disabled={disabled}
-          placeholder={value.length === 0 ? placeholder : ''}
           onChange={(e) => {
             setInputValue(e.target.value)
-            setDropdownOpen(true)
+            setOpen(true)
           }}
-          onFocus={() => setDropdownOpen(true)}
+          onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
-          className="flex-1 min-w-[100px] bg-transparent text-foreground text-sm placeholder:text-muted-foreground outline-none py-0.5"
+          disabled={disabled}
+          placeholder={value.length === 0 ? placeholder : ''}
+          className="flex-1 min-w-[120px] bg-transparent text-foreground text-sm placeholder:text-muted-foreground outline-none"
         />
       </div>
 
-      {/* Hint text */}
+      {/* Hint */}
       {!disabled && (
-        <p className="text-[10px] text-muted-foreground mt-1">
-          Press <kbd className="px-1 py-px rounded border border-border bg-muted text-[9px]">Enter</kbd> or <kbd className="px-1 py-px rounded border border-border bg-muted text-[9px]">,</kbd> to add &middot; <kbd className="px-1 py-px rounded border border-border bg-muted text-[9px]">Backspace</kbd> to remove last
+        <p className="text-[10px] text-muted-foreground mt-1 ml-0.5">
+          Press <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Enter</kbd> or{' '}
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">,</kbd> to add &middot;{' '}
+          <kbd className="px-1 py-0.5 rounded bg-muted text-[10px] font-mono">Backspace</kbd> to remove last
         </p>
       )}
 
-      {/* Dropdown */}
+      {/* Suggestions dropdown */}
       {showDropdown && (
         <div className="absolute z-50 mt-1.5 w-full rounded-xl border border-border bg-card shadow-lg overflow-hidden">
-          <div className="max-h-44 overflow-y-auto py-1">
-            {dropdownItems.map((item, idx) => (
+          <div className="max-h-44 overflow-y-auto">
+            {filtered.length > 0 && (
+              <>
+                <p className="px-3.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Suggestions
+                </p>
+                {filtered.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      addTag(s)
+                    }}
+                    className="w-full flex items-center gap-2 px-3.5 py-2 text-sm text-left text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  >
+                    <Plus size={12} className="shrink-0 opacity-50" />
+                    {s}
+                  </button>
+                ))}
+              </>
+            )}
+
+            {canCreate && !exactMatch && (
               <button
-                key={item.type + item.label}
                 type="button"
-                onMouseDown={(e) => { e.preventDefault(); addTag(item.label) }}
-                onMouseEnter={() => setHighlightIndex(idx)}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  addTag(trimmed)
+                }}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-left transition-colors',
-                  highlightIndex === idx ? 'bg-muted' : 'hover:bg-muted/60',
-                  item.type === 'create' ? '' : 'text-foreground',
+                  'w-full flex items-center gap-2 px-3.5 py-2 text-sm text-left transition-colors hover:bg-muted',
+                  filtered.length > 0 && 'border-t border-border/50',
                 )}
+                style={{ color: '#f4a295' }}
               >
-                {item.type === 'create' ? (
-                  <>
-                    <Plus size={13} className="shrink-0" style={{ color: '#f4a295' }} />
-                    <span>
-                      Add <strong>&ldquo;{item.label}&rdquo;</strong>
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Hash size={12} className="shrink-0 text-muted-foreground" />
-                    <span className="text-foreground">{item.label}</span>
-                  </>
-                )}
+                <Plus size={12} className="shrink-0" />
+                Add &ldquo;<strong>{trimmed}</strong>&rdquo;
               </button>
-            ))}
+            )}
+
+            {filtered.length === 0 && !canCreate && (
+              <p className="px-3.5 py-3 text-xs text-muted-foreground text-center">
+                {suggestions.length === 0
+                  ? 'No suggestions yet. Type to add your first tech tag.'
+                  : 'All suggestions already added.'}
+              </p>
+            )}
           </div>
         </div>
       )}

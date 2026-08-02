@@ -11,9 +11,8 @@ import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
-import { CreatableSelect } from './creatable-select'
 import { TechTagInput } from './tech-tag-input'
-import { NewPostComposer } from './new-post-composer'
+import { CreatableSelect } from './creatable-select'
 
 // ─── Feed item types ──────────────────────────────────────────────────────────
 
@@ -93,12 +92,12 @@ interface Project {
 const PROJECT_EMPTY: Omit<Project, 'id'> = {
   title: '',
   description: '',
-  category: '',
+  category: 'development',
   image: '',
   images: [],
   content: [],
   tech: [],
-  results: {},
+  results: { result: '' },
   link: '',
   github: '',
   featured: false,
@@ -225,6 +224,9 @@ export function FeedManager() {
   const [projects, setProjects] = useState<Project[]>([])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [projectForm, setProjectForm] = useState<Omit<Project, 'id'>>(PROJECT_EMPTY)
+  const [techTags, setTechTags] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
+  const [categories, setCategories] = useState<string[]>([])
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
   const [galleryUploading, setGalleryUploading] = useState(false)
@@ -237,19 +239,12 @@ export function FeedManager() {
   const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [categories, setCategories] = useState<string[]>([])
-  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
 
   const feedFileRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    fetchItems()
-    fetchProjects()
-    fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || [])).catch(() => {})
-    fetch('/api/technologies').then(r => r.json()).then(d => setTechSuggestions(d.technologies || [])).catch(() => {})
-  }, [])
+  useEffect(() => { fetchItems(); fetchProjects(); fetchTechSuggestions(); fetchCategories() }, [])
 
   // ── Data fetchers ──
 
@@ -273,6 +268,43 @@ export function FeedManager() {
     } catch { /* non-fatal */ }
   }
 
+  async function fetchTechSuggestions() {
+    try {
+      const res = await fetch('/api/technologies')
+      const data = await res.json()
+      setTechSuggestions(data.technologies || [])
+    } catch { /* non-fatal */ }
+  }
+
+  async function fetchCategories() {
+    try {
+      const res = await fetch('/api/categories')
+      const data = await res.json()
+      setCategories(data.categories || [])
+    } catch { /* non-fatal */ }
+  }
+
+  async function handleCreateCategory(name: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setCategories((prev) => [...prev, name].sort())
+        addToast(`Category "${name}" created`)
+        return true
+      }
+      addToast(data.error || 'Failed to create category', false)
+      return false
+    } catch {
+      addToast('Failed to create category', false)
+      return false
+    }
+  }
+
   // ── Open/close helpers ──
 
   function openNew(kind: PostKind) {
@@ -280,7 +312,7 @@ export function FeedManager() {
     if (kind === 'project') {
       setEditingProjectId(null)
       setProjectForm(PROJECT_EMPTY)
-      setTechInput('')
+      setTechTags([])
       setResultKey('')
       setResultVal('')
     } else {
@@ -309,7 +341,8 @@ export function FeedManager() {
   function openEditProject(project: Project) {
     setActiveKind('project')
     setEditingProjectId(project.id)
-    setProjectForm({ ...project, images: project.images ?? [], content: project.content ?? [], tech: project.tech ?? [] })
+    setProjectForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
+    setTechTags(Array.isArray(project.tech) ? project.tech : [])
     const firstEntry = Object.entries(project.results ?? {})[0]
     setResultKey(firstEntry?.[0] ?? '')
     setResultVal(firstEntry?.[1] ?? '')
@@ -444,10 +477,9 @@ export function FeedManager() {
   async function handleProjectSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = (projectForm.tech ?? []).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = projectForm.images?.[0] ?? projectForm.image ?? ''
-    const payload = { ...projectForm, tech: techArray, results, image: coverImage }
+    const payload = { ...projectForm, tech: techTags, results, image: coverImage }
 
     try {
       const method = editingProjectId ? 'PUT' : 'POST'
@@ -461,14 +493,6 @@ export function FeedManager() {
         const saved = await res.json()
         addToast(editingProjectId ? 'Project updated' : 'Project added')
 
-        // Merge new tech tags into suggestions
-        if (techArray.length > 0) {
-          setTechSuggestions(prev => {
-            const merged = new Set([...prev, ...techArray])
-            return Array.from(merged).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-          })
-        }
-
         if (!editingProjectId) {
           const projectData = saved.project ?? payload
           const feedPost = {
@@ -480,7 +504,7 @@ export function FeedManager() {
             author: 'Zihad Imtiase',
             image: coverImage,
             media: projectForm.images ?? [],
-            tech: techArray,
+            tech: techTags,
             link: projectData.link ?? '',
             featured: projectData.featured ?? false,
             linkedProjectId: projectData.id ?? saved.project?.id ?? '',
@@ -543,7 +567,7 @@ export function FeedManager() {
             {items.length} {items.length === 1 ? 'post' : 'posts'} total
           </p>
         </div>
-        <NewPostComposer onSuccess={() => { fetchItems(); fetchProjects() }} />
+        <TypePickerPopover onSelect={openNew} />
       </div>
 
       <UploadFormatPicker value={uploadFormat} onChange={setUploadFormat} />
@@ -743,14 +767,7 @@ export function FeedManager() {
                     value={projectForm.category}
                     onChange={(val) => setProject('category', val)}
                     categories={categories}
-                    onCreateCategory={async (name) => {
-                      try {
-                        const res = await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
-                        const data = await res.json()
-                        if (res.ok && data.success) { setCategories(prev => [...prev, name].sort()); addToast(`Category "${name}" created`); return true }
-                        addToast(data.error || 'Failed to create category', false); return false
-                      } catch { addToast('Failed to create category', false); return false }
-                    }}
+                    onCreateCategory={handleCreateCategory}
                     disabled={saving}
                   />
                 </div>
@@ -793,11 +810,10 @@ export function FeedManager() {
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
                 <TechTagInput
-                  value={projectForm.tech ?? []}
-                  onChange={(tags) => setProject('tech', tags)}
+                  value={techTags}
+                  onChange={setTechTags}
                   suggestions={techSuggestions}
                   disabled={saving}
-                  placeholder="React, TailwindCSS, Stripe..."
                 />
               </div>
 

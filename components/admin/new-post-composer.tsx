@@ -2,37 +2,52 @@
 
 /**
  * NewPostComposer
- * ─────────────────────────────────────────────────────────────────────────────
- * A self-contained, reusable "New Post" widget.
+ * ───────────────
+ * A fully self-contained modal/panel that handles creating Posts, Testimonials,
+ * and Projects. Designed to be embedded anywhere (Quick Compose fab, Admin Feed page, etc.)
  *
- * Usage:
- *   <NewPostComposer
- *     trigger={<button>New Post</button>}   // optional custom trigger
- *     onSuccess={() => refetch()}           // optional callback after save
- *   />
- *
- * When `trigger` is omitted the component renders a default "+ New Post" button.
- * The composer handles its own modal state, all three post kinds (post /
- * testimonial / project), file uploads, media-picker, and form submission.
+ * Props:
+ *  - open          : boolean to show/hide the modal
+ *  - onClose       : called when the user dismisses
+ *  - onSuccess     : called after a successful save (optional – e.g. to refresh lists)
+ *  - defaultKind   : pre-select a post type on open (optional)
+ *  - uploadFormat  : image compression format (optional, default 'webp')
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
-  Plus, ChevronDown, X, Upload, ImagePlus, Check, Loader2,
-  Star, ExternalLink, Code, AlignLeft, Image, GripVertical,
-  Film, Music, BookOpen, Quote, Briefcase,
+  X, Check, Upload, Loader2, Star,
+  BookOpen, Quote, Briefcase, ChevronDown,
+  Music, Film, ImagePlus, ExternalLink, Code,
+  AlignLeft, Image, GripVertical, Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { MediaPickerModal } from './media-picker-modal'
-import { CreatableSelect } from './creatable-select'
-import { TechTagInput } from './tech-tag-input'
-import { useToast } from '@/hooks/use-toast'
-import { ToastStack } from './shared'
+import { MediaPickerModal } from '@/components/admin/media-picker-modal'
+import { TechTagInput } from '@/components/admin/tech-tag-input'
+import { CreatableSelect } from '@/components/admin/creatable-select'
 
-// ─── Types ─────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-type PostKind = 'post' | 'testimonial' | 'project'
-type UploadFormat = 'webp' | 'jpg' | 'png'
+interface FeedPayload {
+  type: string
+  title: string
+  excerpt: string
+  content: string
+  category: string
+  image?: string
+  media?: string[]
+  author: string
+  clientName?: string
+  clientRole?: string
+  date: string
+  likes: number
+  replies: number
+  rating?: number
+  tech?: string[]
+  link?: string
+  featured?: boolean
+  linkedProjectId?: string
+}
 
 interface ContentBlock {
   id: string
@@ -42,42 +57,42 @@ interface ContentBlock {
   caption?: string
 }
 
-interface FeedForm {
-  type: string
-  title: string
-  excerpt: string
-  content: string
-  category: string
-  image: string
-  media: string[]
-  author: string
-  clientName: string
-  clientRole: string
-  date: string
-  likes: number
-  replies: number
-  rating: number
-  tech: string[]
-  link: string
-  featured: boolean
-  linkedProjectId: string
-}
-
-interface ProjectForm {
+interface ProjectPayload {
   title: string
   description: string
   category: string
-  image: string
-  images: string[]
-  content: ContentBlock[]
+  image?: string
+  images?: string[]
+  content?: ContentBlock[]
   tech: string[]
   results: Record<string, string>
-  link: string
-  github: string
+  link?: string
+  github?: string
   featured: boolean
 }
 
-const FEED_EMPTY: FeedForm = {
+export type PostKind = 'post' | 'testimonial' | 'project'
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+export const KIND_OPTIONS: {
+  value: PostKind
+  label: string
+  description: string
+  icon: React.ElementType
+  color: string
+}[] = [
+  { value: 'post', label: 'Post', description: 'General update or article', icon: BookOpen, color: '#f4a295' },
+  { value: 'testimonial', label: 'Testimonial', description: 'Client review with rating', icon: Quote, color: '#a8d5c2' },
+  { value: 'project', label: 'Project', description: 'Portfolio project with gallery', icon: Briefcase, color: '#9db8e8' },
+]
+
+const FEED_CATEGORY_MAP: Record<string, string> = {
+  post: 'posts',
+  testimonial: 'testimonials',
+}
+
+const FEED_EMPTY: Omit<FeedPayload, never> = {
   type: 'post',
   title: '',
   excerpt: '',
@@ -98,7 +113,7 @@ const FEED_EMPTY: FeedForm = {
   linkedProjectId: '',
 }
 
-const PROJECT_EMPTY: ProjectForm = {
+const PROJECT_EMPTY: ProjectPayload = {
   title: '',
   description: '',
   category: '',
@@ -106,69 +121,25 @@ const PROJECT_EMPTY: ProjectForm = {
   images: [],
   content: [],
   tech: [],
-  results: {},
+  results: { result: '' },
   link: '',
   github: '',
   featured: false,
 }
 
-const FEED_CATEGORY_MAP: Record<string, string> = {
-  post: 'posts',
-  testimonial: 'testimonials',
-}
-
-const KIND_OPTIONS: {
-  value: PostKind
-  label: string
-  description: string
-  icon: React.ElementType
-  color: string
-}[] = [
-  { value: 'post', label: 'Post', description: 'General update or article', icon: BookOpen, color: '#f4a295' },
-  { value: 'testimonial', label: 'Testimonial', description: 'Client review with rating', icon: Quote, color: '#a8d5c2' },
-  { value: 'project', label: 'Project', description: 'Portfolio project with gallery', icon: Briefcase, color: '#9db8e8' },
-]
-
 function newBlockId() {
   return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
 }
 
-function mediaType(url: string): 'image' | 'video' | 'audio' {
+function mediaTypeOf(url: string): 'image' | 'video' | 'audio' {
   if (/\.(mp4|webm|mov)$/i.test(url)) return 'video'
   if (/\.(mp3|ogg|wav|aac|flac|m4a)$/i.test(url)) return 'audio'
   return 'image'
 }
 
-function MediaThumb({ url, onRemove }: { url: string; onRemove: () => void }) {
-  const kind = mediaType(url)
-  return (
-    <div className="relative rounded-xl overflow-hidden bg-muted border border-border group/thumb">
-      {kind === 'image' && <img src={url} alt="" className="w-full h-24 object-cover" />}
-      {kind === 'video' && (
-        <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-muted-foreground">
-          <Film size={20} /><span className="text-[10px]">Video</span>
-        </div>
-      )}
-      {kind === 'audio' && (
-        <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-muted-foreground">
-          <Music size={20} /><span className="text-[10px]">Audio</span>
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={onRemove}
-        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90 transition-colors opacity-0 group-hover/thumb:opacity-100"
-      >
-        <X size={11} />
-      </button>
-      <div className="absolute bottom-1 left-1.5 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-black/60 text-white">{kind}</div>
-    </div>
-  )
-}
+// ─── Type Picker Popover ──────────────────────────────────────────────────────
 
-// ─── TypePickerPopover ────────────────────────────────────────────────────
-
-function TypePickerPopover({ onSelect }: { onSelect: (kind: PostKind) => void }) {
+export function TypePickerPopover({ onSelect }: { onSelect: (kind: PostKind) => void }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -224,114 +195,140 @@ function TypePickerPopover({ onSelect }: { onSelect: (kind: PostKind) => void })
   )
 }
 
-// ─── Props ────────────────────────────────────────────────────────────────
+// ─── Media Thumb ──────────────────────────────────────────────────────────────
 
-export interface NewPostComposerProps {
-  /** Optional custom trigger element. When omitted, the default "+ New Post" button is rendered. */
-  trigger?: React.ReactNode
-  /** Called after a successful save/publish. */
-  onSuccess?: () => void
-  /** Called after composer is closed (with or without save). */
-  onClose?: () => void
-  /**
-   * When `true`, the composer renders as a floating action button that toggles
-   * a full-screen modal overlay (QuickCompose mode). When `false` (default),
-   * it renders inline — just the TypePickerPopover + the inline form panel.
-   */
-  floatingMode?: boolean
+function MediaThumb({ url, onRemove }: { url: string; onRemove: () => void }) {
+  const kind = mediaTypeOf(url)
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-muted border border-border group/thumb">
+      {kind === 'image' && <img src={url} alt="" className="w-full h-24 object-cover" />}
+      {kind === 'video' && (
+        <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-muted-foreground">
+          <Film size={20} /><span className="text-[10px]">Video</span>
+        </div>
+      )}
+      {kind === 'audio' && (
+        <div className="w-full h-24 flex flex-col items-center justify-center gap-1 text-muted-foreground">
+          <Music size={20} /><span className="text-[10px]">Audio</span>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90 transition-colors opacity-0 group-hover/thumb:opacity-100"
+      >
+        <X size={11} />
+      </button>
+      <div className="absolute bottom-1 left-1.5 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-black/60 text-white">{kind}</div>
+    </div>
+  )
 }
 
-// ─── Main component ────────────────────────────────────────────────────────
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export interface NewPostComposerProps {
+  open: boolean
+  onClose: () => void
+  onSuccess?: () => void
+  defaultKind?: PostKind
+  uploadFormat?: string
+  /** Whether to render as a floating modal overlay (default: true). Set false to embed inline. */
+  asModal?: boolean
+}
 
 export function NewPostComposer({
-  trigger,
-  onSuccess,
+  open,
   onClose,
-  floatingMode = false,
+  onSuccess,
+  defaultKind,
+  uploadFormat = 'webp',
+  asModal = true,
 }: NewPostComposerProps) {
-  // ── Active kind & modal ──
-  const [activeKind, setActiveKind] = useState<PostKind | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
+  // ── Kind ──
+  const [activeKind, setActiveKind] = useState<PostKind>(defaultKind ?? 'post')
 
   // ── Feed form ──
-  const [feedForm, setFeedForm] = useState<FeedForm>(FEED_EMPTY)
-  const [editingFeedId] = useState<string | null>(null)
+  const [feedForm, setFeedFormState] = useState<FeedPayload>({ ...FEED_EMPTY })
   const [feedUploading, setFeedUploading] = useState(false)
   const [feedPickerOpen, setFeedPickerOpen] = useState(false)
-  const feedFileRef = useRef<HTMLInputElement>(null)
 
   // ── Project form ──
-  const [projectForm, setProjectForm] = useState<ProjectForm>(PROJECT_EMPTY)
-  const [editingProjectId] = useState<string | null>(null)
+  const [projectForm, setProjectFormState] = useState<ProjectPayload>({ ...PROJECT_EMPTY })
+  const [techTags, setTechTags] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
   const [galleryUploading, setGalleryUploading] = useState(false)
   const [projectPickerOpen, setProjectPickerOpen] = useState(false)
-  const galleryRef = useRef<HTMLInputElement>(null)
-
-  // ── Global data ──
   const [categories, setCategories] = useState<string[]>([])
-  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
 
   // ── Shared ──
   const [saving, setSaving] = useState(false)
-  const [uploadFormat] = useState<UploadFormat>('webp')
-  const { toasts, addToast } = useToast()
-  const formRef = useRef<HTMLDivElement>(null)
 
-  // ── Load global data once ──
+  const feedFileRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
+
+  // Fetch suggestions on mount
   useEffect(() => {
-    fetch('/api/categories')
-      .then((r) => r.json())
-      .then((d) => setCategories(d.categories || []))
-      .catch(() => {})
-
     fetch('/api/technologies')
       .then((r) => r.json())
-      .then((d) => setTechSuggestions(d.technologies || []))
+      .then((d) => setTechSuggestions(d.technologies ?? []))
+      .catch(() => {})
+
+    fetch('/api/categories')
+      .then((r) => r.json())
+      .then((d) => setCategories(d.categories ?? []))
       .catch(() => {})
   }, [])
 
-  // ── Helpers ──
-
-  function resetForms() {
-    setFeedForm(FEED_EMPTY)
-    setProjectForm(PROJECT_EMPTY)
-    setResultKey('')
-    setResultVal('')
-  }
-
-  function openKind(kind: PostKind) {
-    resetForms()
-    setActiveKind(kind)
-    if (kind !== 'project') {
-      setFeedForm({ ...FEED_EMPTY, type: kind, category: FEED_CATEGORY_MAP[kind] ?? 'posts', date: new Date().toISOString().split('T')[0] })
+  // Reset when opened with a new kind or re-opened
+  useEffect(() => {
+    if (open) {
+      const kind = defaultKind ?? 'post'
+      setActiveKind(kind)
+      if (kind === 'project') {
+        setProjectFormState({ ...PROJECT_EMPTY })
+        setTechTags([])
+        setResultKey('')
+        setResultVal('')
+      } else {
+        setFeedFormState({
+          ...FEED_EMPTY,
+          type: kind,
+          category: FEED_CATEGORY_MAP[kind] ?? 'posts',
+          date: new Date().toISOString().split('T')[0],
+        })
+      }
     }
-    if (floatingMode) setModalOpen(true)
-    else setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+  }, [open, defaultKind])
+
+  // Switch kind and reset corresponding form
+  function switchKind(kind: PostKind) {
+    setActiveKind(kind)
+    if (kind === 'project') {
+      setProjectFormState({ ...PROJECT_EMPTY })
+      setTechTags([])
+      setResultKey('')
+      setResultVal('')
+    } else {
+      setFeedFormState({
+        ...FEED_EMPTY,
+        type: kind,
+        category: FEED_CATEGORY_MAP[kind] ?? 'posts',
+        date: new Date().toISOString().split('T')[0],
+      })
+    }
   }
-
-  function closeAll() {
-    setActiveKind(null)
-    setModalOpen(false)
-    resetForms()
-    onClose?.()
-  }
-
-  const activeMeta = activeKind ? KIND_OPTIONS.find((k) => k.value === activeKind) : null
-
-  const formTitle = (() => {
-    if (!activeKind) return ''
-    if (activeKind === 'project') return editingProjectId ? 'Edit Project' : 'Add New Project'
-    if (activeKind === 'testimonial') return editingFeedId ? 'Edit Testimonial' : 'New Testimonial'
-    return editingFeedId ? 'Edit Post' : 'New Post'
-  })()
-
-  // ── Feed helpers ──
 
   function setFeed(key: string, value: unknown) {
-    setFeedForm((f) => ({ ...f, [key]: value }))
+    setFeedFormState((f) => ({ ...f, [key]: value }))
   }
+
+  function setProject(key: string, value: unknown) {
+    setProjectFormState((f) => ({ ...f, [key]: value }))
+  }
+
+  // ── Feed upload ──
 
   async function handleFeedUpload(files: FileList) {
     setFeedUploading(true)
@@ -344,78 +341,27 @@ export function NewPostComposer({
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const data = await res.json()
         if (data.success) uploaded.push(data.url)
-        else addToast(`Upload failed: ${file.name}`, false)
-      } catch { addToast(`Upload failed: ${file.name}`, false) }
+      } catch {}
     }
     if (uploaded.length > 0) {
-      setFeedForm((f) => ({ ...f, media: [...(f.media ?? []), ...uploaded] }))
-      addToast(`${uploaded.length} file(s) uploaded`)
+      setFeedFormState((f) => ({ ...f, media: [...(f.media ?? []), ...uploaded] }))
     }
     setFeedUploading(false)
   }
 
+  function handleFeedSelectExisting(urls: string[]) {
+    const slots = 4 - (feedForm.media?.length || 0)
+    const toAdd = urls.slice(0, slots)
+    if (toAdd.length > 0) {
+      setFeedFormState((f) => ({ ...f, media: [...(f.media ?? []), ...toAdd] }))
+    }
+  }
+
   function removeFeedMedia(index: number) {
-    setFeedForm((f) => ({ ...f, media: (f.media ?? []).filter((_, i) => i !== index) }))
+    setFeedFormState((f) => ({ ...f, media: (f.media ?? []).filter((_, i) => i !== index) }))
   }
 
-  async function handleFeedSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    const payload = {
-      ...feedForm,
-      category: FEED_CATEGORY_MAP[feedForm.type] ?? 'posts',
-      image: (feedForm.media ?? [])[0] ?? feedForm.image ?? '',
-    }
-    try {
-      const method = editingFeedId ? 'PUT' : 'POST'
-      const body = editingFeedId ? { id: editingFeedId, updates: payload } : payload
-      const res = await fetch('/api/feed', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (res.ok) {
-        addToast(editingFeedId ? 'Post updated' : 'Post published')
-        closeAll()
-        onSuccess?.()
-      } else { addToast('Save failed', false) }
-    } catch { addToast('Save failed', false) }
-    finally { setSaving(false) }
-  }
-
-  // ── Project helpers ──
-
-  function setProject(key: string, value: unknown) {
-    setProjectForm((f) => ({ ...f, [key]: value }))
-  }
-
-  async function handleCreateCategory(name: string): Promise<boolean> {
-    try {
-      const res = await fetch('/api/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      const data = await res.json()
-      if (res.ok && data.success) {
-        setCategories((prev) => [...prev, name].sort())
-        addToast(`Category "${name}" created`)
-        return true
-      }
-      addToast(data.error || 'Failed to create category', false)
-      return false
-    } catch {
-      addToast('Failed to create category', false)
-      return false
-    }
-  }
-
-  function mergeTechSuggestions(tags: string[]) {
-    setTechSuggestions((prev) => {
-      const merged = new Set([...prev, ...tags])
-      return Array.from(merged).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-    })
-  }
+  // ── Gallery upload ──
 
   async function handleGalleryUpload(files: FileList) {
     setGalleryUploading(true)
@@ -428,123 +374,207 @@ export function NewPostComposer({
         const res = await fetch('/api/upload', { method: 'POST', body: fd })
         const data = await res.json()
         if (data.success) uploaded.push(data.url)
-        else addToast(`Upload failed: ${file.name}`, false)
-      } catch { addToast(`Upload failed: ${file.name}`, false) }
+      } catch {}
     }
     if (uploaded.length > 0) {
-      setProjectForm((f) => ({ ...f, images: [...(f.images ?? []), ...uploaded] }))
-      addToast(`${uploaded.length} image(s) added`)
+      setProjectFormState((f) => ({ ...f, images: [...(f.images ?? []), ...uploaded] }))
     }
     setGalleryUploading(false)
   }
 
-  function removeGalleryImage(index: number) {
-    setProjectForm((f) => ({ ...f, images: (f.images ?? []).filter((_, i) => i !== index) }))
+  function handleProjectSelectExisting(urls: string[]) {
+    if (urls.length > 0) {
+      setProjectFormState((f) => ({ ...f, images: [...(f.images ?? []), ...urls] }))
+    }
   }
 
+  function removeGalleryImage(index: number) {
+    setProjectFormState((f) => ({ ...f, images: (f.images ?? []).filter((_, i) => i !== index) }))
+  }
+
+  // ── Content blocks ──
+
   function addBlock(type: ContentBlock['type']) {
-    const block: ContentBlock = { id: newBlockId(), type }
-    setProjectForm((f) => ({ ...f, content: [...(f.content ?? []), block] }))
+    setProjectFormState((f) => ({ ...f, content: [...(f.content ?? []), { id: newBlockId(), type }] }))
   }
 
   function updateBlock(id: string, changes: Partial<ContentBlock>) {
-    setProjectForm((f) => ({
+    setProjectFormState((f) => ({
       ...f,
       content: (f.content ?? []).map((b) => (b.id === id ? { ...b, ...changes } : b)),
     }))
   }
 
   function removeBlock(id: string) {
-    setProjectForm((f) => ({ ...f, content: (f.content ?? []).filter((b) => b.id !== id) }))
+    setProjectFormState((f) => ({ ...f, content: (f.content ?? []).filter((b) => b.id !== id) }))
   }
 
-  const handleProjectSubmit = useCallback(async (e: React.FormEvent) => {
+  // ── Category create ──
+
+  async function handleCreateCategory(name: string): Promise<boolean> {
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) {
+        setCategories((prev) => [...prev, name].sort())
+        return true
+      }
+      return false
+    } catch {
+      return false
+    }
+  }
+
+  // ── Submit: Feed ──
+
+  async function handleFeedSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = (projectForm.tech ?? []).filter(Boolean)
+    const payload = {
+      ...feedForm,
+      category: FEED_CATEGORY_MAP[feedForm.type] ?? 'posts',
+      image: (feedForm.media ?? [])[0] ?? feedForm.image ?? '',
+    }
+    try {
+      const res = await fetch('/api/feed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        onSuccess?.()
+        onClose()
+      }
+    } catch {}
+    finally { setSaving(false) }
+  }
+
+  // ── Submit: Project ──
+
+  async function handleProjectSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = projectForm.images?.[0] ?? projectForm.image ?? ''
-    const payload = { ...projectForm, tech: techArray, results, image: coverImage }
+    const payload = { ...projectForm, tech: techTags, results, image: coverImage }
 
     try {
-      const method = editingProjectId ? 'PUT' : 'POST'
-      const body = editingProjectId ? { id: editingProjectId, updates: payload } : payload
       const res = await fetch('/api/portfolio', {
-        method,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         const saved = await res.json()
-        addToast(editingProjectId ? 'Project updated' : 'Project added')
-        if (techArray.length > 0) mergeTechSuggestions(techArray)
-
-        if (!editingProjectId) {
-          const projectData = saved.project ?? payload
-          const feedPost = {
-            type: 'project',
-            category: 'projects',
-            title: projectData.title,
-            excerpt: projectData.description,
-            content: projectData.description,
-            author: 'Zihad Imtiase',
-            image: coverImage,
-            media: projectForm.images ?? [],
-            tech: techArray,
-            link: projectData.link ?? '',
-            featured: projectData.featured ?? false,
-            linkedProjectId: projectData.id ?? saved.project?.id ?? '',
-          }
-          try {
-            await fetch('/api/feed', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(feedPost),
-            })
-          } catch { /* non-fatal */ }
+        // Auto-sync to feed
+        const projectData = saved.project ?? payload
+        const feedPost = {
+          type: 'project',
+          category: 'projects',
+          title: projectData.title,
+          excerpt: projectData.description,
+          content: projectData.description,
+          author: 'Zihad Imtiase',
+          image: coverImage,
+          media: projectForm.images ?? [],
+          tech: techTags,
+          link: projectData.link ?? '',
+          featured: projectData.featured ?? false,
+          linkedProjectId: projectData.id ?? saved.project?.id ?? '',
         }
+        try {
+          await fetch('/api/feed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(feedPost),
+          })
+        } catch {}
 
-        closeAll()
+        // Refresh tech suggestions with newly added tags
+        setTechSuggestions((prev) => {
+          const next = [...new Set([...prev, ...techTags])].sort()
+          return next
+        })
+
         onSuccess?.()
-      } else { addToast('Save failed', false) }
-    } catch { addToast('Save failed', false) }
+        onClose()
+      }
+    } catch {}
     finally { setSaving(false) }
-  }, [projectForm, resultKey, resultVal, editingProjectId, onSuccess]) // eslint-disable-line
+  }
 
-  // ── Counts ──
+  // ─── Guard ───────────────────────────────────────────────────────────────────
+
+  if (!open) return null
+
+  const activeMeta = KIND_OPTIONS.find((k) => k.value === activeKind)!
   const feedMediaCount = (feedForm.media ?? []).length
   const galleryCount = (projectForm.images ?? []).length
 
-  // ── Form panel (shared between inline and modal modes) ──
-  const FormPanel = activeKind ? (
-    <div ref={formRef} className={cn('rounded-2xl border border-border bg-card overflow-hidden', !floatingMode && 'mb-6')}>
+  // ─── Inner content (shared by modal & inline modes) ───────────────────────────
+
+  const innerContent = (
+    <div
+      className={cn(
+        'bg-card border border-border rounded-2xl shadow-xl overflow-hidden flex flex-col',
+        asModal ? 'w-full max-w-xl' : 'w-full',
+      )}
+    >
       {/* Header */}
       <div
-        className="flex items-center justify-between px-5 py-4 border-b border-border"
-        style={{ background: (activeMeta?.color ?? '#f4a295') + '10' }}
+        className="flex items-center justify-between px-5 py-3.5 border-b border-border"
+        style={{ background: activeMeta.color + '10' }}
       >
-        <div className="flex items-center gap-2.5">
-          {activeMeta && (
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ backgroundColor: activeMeta.color + '20' }}
-            >
-              <activeMeta.icon size={14} style={{ color: activeMeta.color }} />
-            </div>
-          )}
-          <h3 className="font-semibold text-foreground text-sm">{formTitle}</h3>
+        <div className="flex items-center gap-3">
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{ backgroundColor: activeMeta.color + '20' }}
+          >
+            <activeMeta.icon size={14} style={{ color: activeMeta.color }} />
+          </div>
+          <p className="text-sm font-bold text-foreground">
+            {activeKind === 'project' ? 'Add Project' : activeKind === 'testimonial' ? 'New Testimonial' : 'New Post'}
+          </p>
         </div>
-        <button
-          onClick={closeAll}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <X size={15} />
-        </button>
+
+        {/* Kind selector tabs */}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 bg-muted p-0.5 rounded-xl">
+            {KIND_OPTIONS.map(({ value, icon: Icon, color }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => switchKind(value)}
+                title={KIND_OPTIONS.find((k) => k.value === value)?.label}
+                className={cn(
+                  'w-7 h-7 rounded-lg flex items-center justify-center transition-all',
+                  activeKind === value
+                    ? 'bg-background shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/50',
+                )}
+                style={activeKind === value ? { color } : {}}
+              >
+                <Icon size={13} />
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <X size={15} />
+          </button>
+        </div>
       </div>
 
       {/* ── POST / TESTIMONIAL FORM ── */}
       {(activeKind === 'post' || activeKind === 'testimonial') && (
-        <form onSubmit={handleFeedSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleFeedSubmit} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
               Title <span className="text-destructive">*</span>
@@ -636,7 +666,7 @@ export function NewPostComposer({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Media <span className="font-normal normal-case text-muted-foreground/70">— up to 4 files</span>
+                Media <span className="font-normal normal-case text-muted-foreground/70">— up to 4</span>
               </label>
               {feedMediaCount > 0 && <span className="text-[11px] text-muted-foreground">{feedMediaCount}/4</span>}
             </div>
@@ -650,7 +680,7 @@ export function NewPostComposer({
             {feedMediaCount < 4 && (
               <div className="grid grid-cols-2 gap-2">
                 <div
-                  className={cn('border-2 border-dashed rounded-xl cursor-pointer transition-colors', feedUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30')}
+                  className={cn('border-2 border-dashed rounded-xl transition-colors cursor-pointer', feedUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30')}
                   onClick={() => !feedUploading && feedFileRef.current?.click()}
                 >
                   <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
@@ -658,7 +688,7 @@ export function NewPostComposer({
                   </div>
                 </div>
                 <div
-                  className="border-2 border-dashed rounded-xl cursor-pointer transition-colors border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
+                  className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
                   onClick={() => setFeedPickerOpen(true)}
                 >
                   <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
@@ -685,12 +715,12 @@ export function NewPostComposer({
               type="submit"
               disabled={saving}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
-              style={{ backgroundColor: activeMeta?.color ?? '#f4a295', color: '#1a1a1a' }}
+              style={{ backgroundColor: activeMeta.color, color: '#1a1a1a' }}
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              {editingFeedId ? 'Save changes' : 'Publish'}
+              Publish
             </button>
-            <button type="button" onClick={closeAll} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               Cancel
             </button>
           </div>
@@ -699,7 +729,7 @@ export function NewPostComposer({
 
       {/* ── PROJECT FORM ── */}
       {activeKind === 'project' && (
-        <form onSubmit={handleProjectSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleProjectSubmit} className="p-5 space-y-4 overflow-y-auto max-h-[70vh]">
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
@@ -750,11 +780,10 @@ export function NewPostComposer({
           <div>
             <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
             <TechTagInput
-              value={projectForm.tech ?? []}
-              onChange={(tags) => setProject('tech', tags)}
+              value={techTags}
+              onChange={setTechTags}
               suggestions={techSuggestions}
               disabled={saving}
-              placeholder="React, TailwindCSS, Stripe..."
             />
           </div>
 
@@ -789,7 +818,8 @@ export function NewPostComposer({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Project Images <span className="font-normal normal-case text-muted-foreground/70">— first image is cover</span>
+                Project Images
+                <span className="ml-1 font-normal normal-case text-muted-foreground/70">— first is cover</span>
               </label>
               {galleryCount > 0 && <span className="text-[11px] text-muted-foreground">{galleryCount} image{galleryCount !== 1 ? 's' : ''}</span>}
             </div>
@@ -805,18 +835,12 @@ export function NewPostComposer({
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
-              <div
-                onClick={() => !galleryUploading && galleryRef.current?.click()}
-                className={cn('border-2 border-dashed rounded-xl cursor-pointer transition-colors', galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#9db8e8]/50 hover:bg-muted/30')}
-              >
+              <div onClick={() => !galleryUploading && galleryRef.current?.click()} className={cn('border-2 border-dashed rounded-xl transition-colors cursor-pointer', galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#9db8e8]/50 hover:bg-muted/30')}>
                 <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
                   {galleryUploading ? <Loader2 size={18} className="animate-spin text-[#9db8e8]" /> : <><Upload size={18} /><span className="text-xs">Upload New</span></>}
                 </div>
               </div>
-              <div
-                onClick={() => setProjectPickerOpen(true)}
-                className="border-2 border-dashed rounded-xl cursor-pointer transition-colors border-border hover:border-[#9db8e8]/50 hover:bg-muted/30"
-              >
+              <div onClick={() => setProjectPickerOpen(true)} className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#9db8e8]/50 hover:bg-muted/30">
                 <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground"><ImagePlus size={18} /><span className="text-xs">Choose Existing</span></div>
               </div>
               <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleGalleryUpload(e.target.files)} />
@@ -853,30 +877,15 @@ export function NewPostComposer({
                           ) : (
                             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-border bg-muted/30 text-xs text-muted-foreground">
                               <Image size={13} className="shrink-0" />
-                              Upload images in the &quot;Project Images&quot; section above to pick one here.
+                              Upload images above to pick one here.
                             </div>
                           )}
-                          {(projectForm.images ?? []).length > 0 && (
-                            <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                              {(projectForm.images ?? []).map((url, idx) => (
-                                <button
-                                  key={url}
-                                  type="button"
-                                  onClick={() => updateBlock(block.id, { url })}
-                                  title={`Image ${idx + 1}`}
-                                  className={cn('shrink-0 w-14 h-10 rounded-lg overflow-hidden border-2 transition-all', block.url === url ? 'border-[#9db8e8] ring-1 ring-[#9db8e8]/40' : 'border-transparent hover:border-border')}
-                                >
-                                  <img src={url} alt="" className="w-full h-full object-cover" />
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                          <input type="text" value={block.caption ?? ''} onChange={(e) => updateBlock(block.id, { caption: e.target.value })} placeholder="Caption (optional)..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
                           {block.url && (
                             <div className="rounded-xl overflow-hidden bg-muted border border-border">
                               <img src={block.url} alt={block.caption ?? ''} className="w-full max-h-32 object-cover" />
                             </div>
                           )}
+                          <input type="text" value={block.caption ?? ''} onChange={(e) => updateBlock(block.id, { caption: e.target.value })} placeholder="Caption (optional)..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
                         </div>
                       )}
                       {block.type === 'divider' && <div className="flex items-center gap-2 py-2 text-muted-foreground"><div className="flex-1 h-px bg-border" /><span className="text-[10px] uppercase tracking-widest">divider</span><div className="flex-1 h-px bg-border" /></div>}
@@ -902,126 +911,27 @@ export function NewPostComposer({
               style={{ backgroundColor: '#9db8e8', color: '#1a1a1a' }}
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-              {editingProjectId ? 'Save changes' : 'Add project'}
+              Add Project
             </button>
-            <button type="button" onClick={closeAll} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+            <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               Cancel
             </button>
           </div>
         </form>
       )}
-    </div>
-  ) : null
 
-  // ── Media picker modals ──
-  const Modals = (
-    <>
-      <MediaPickerModal
-        isOpen={feedPickerOpen}
-        onClose={() => setFeedPickerOpen(false)}
-        multiple
-        onSelect={(urls) => {
-          const slots = 4 - (feedForm.media?.length || 0)
-          const toAdd = urls.slice(0, slots)
-          if (toAdd.length > 0) {
-            setFeedForm((f) => ({ ...f, media: [...(f.media ?? []), ...toAdd] }))
-            addToast(`${toAdd.length} media attached`)
-          }
-        }}
-      />
-      <MediaPickerModal
-        isOpen={projectPickerOpen}
-        onClose={() => setProjectPickerOpen(false)}
-        multiple
-        onSelect={(urls) => {
-          if (urls.length > 0) {
-            setProjectForm((f) => ({ ...f, images: [...(f.images ?? []), ...urls] }))
-            addToast(`${urls.length} media attached`)
-          }
-        }}
-      />
-    </>
+      <MediaPickerModal isOpen={feedPickerOpen} onClose={() => setFeedPickerOpen(false)} multiple={true} onSelect={handleFeedSelectExisting} />
+      <MediaPickerModal isOpen={projectPickerOpen} onClose={() => setProjectPickerOpen(false)} multiple={true} onSelect={handleProjectSelectExisting} />
+    </div>
   )
 
-  // ── FLOATING MODE (QuickCompose FAB + overlay modal) ──
-  if (floatingMode) {
-    return (
-      <>
-        <ToastStack toasts={toasts} />
-        {/* FAB / custom trigger */}
-        <div
-          onClick={() => setModalOpen(true)}
-          className="cursor-pointer"
-        >
-          {trigger ?? (
-            <button
-              className="w-14 h-14 rounded-full flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-[0_8px_30px_rgba(244,162,149,0.3)] hover:shadow-[0_8px_30px_rgba(244,162,149,0.5)]"
-              style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-              aria-label="Create Post"
-            >
-              <Plus size={24} strokeWidth={2.5} />
-            </button>
-          )}
-        </div>
+  if (!asModal) return innerContent
 
-        {/* Type picker modal overlay (step 1: choose kind) */}
-        {modalOpen && !activeKind && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                <p className="text-sm font-bold text-foreground">What would you like to create?</p>
-                <button onClick={closeAll} className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                  <X size={15} />
-                </button>
-              </div>
-              <div className="p-3 space-y-1.5">
-                {KIND_OPTIONS.map(({ value, label, description, icon: Icon, color }) => (
-                  <button
-                    key={value}
-                    onClick={() => openKind(value)}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors text-left"
-                  >
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '18' }}>
-                      <Icon size={18} style={{ color }} />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{label}</p>
-                      <p className="text-xs text-muted-foreground">{description}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Form modal overlay (step 2: fill form) */}
-        {modalOpen && activeKind && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8 px-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
-            <div className="w-full max-w-lg animate-in zoom-in-95 duration-200">
-              {FormPanel}
-            </div>
-          </div>
-        )}
-
-        {Modals}
-      </>
-    )
-  }
-
-  // ── INLINE MODE (used inside admin panel) ──
   return (
-    <>
-      <ToastStack toasts={toasts} />
-      {/* Trigger: default TypePickerPopover or custom */}
-      {trigger ? (
-        <div onClick={() => setModalOpen(true)}>{trigger}</div>
-      ) : (
-        <TypePickerPopover onSelect={openKind} />
-      )}
-      {/* Inline form panel */}
-      {activeKind && FormPanel}
-      {Modals}
-    </>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-xl animate-in zoom-in-95 slide-in-from-bottom-4 sm:slide-in-from-bottom-0 duration-200">
+        {innerContent}
+      </div>
+    </div>
   )
 }

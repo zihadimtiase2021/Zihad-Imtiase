@@ -65,10 +65,11 @@ export function PortfolioManager() {
   const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [techTags, setTechTags] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
   const [categories, setCategories] = useState<string[]>([])
-  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
 
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
@@ -97,7 +98,7 @@ export function PortfolioManager() {
       const data = await res.json()
       setCategories(data.categories || [])
     } catch {
-      // Non-fatal — categories will just be empty
+      // Non-fatal
     }
   }
 
@@ -109,13 +110,6 @@ export function PortfolioManager() {
     } catch {
       // Non-fatal
     }
-  }
-
-  function mergeTechSuggestions(newTags: string[]) {
-    setTechSuggestions((prev) => {
-      const merged = new Set([...prev, ...newTags])
-      return Array.from(merged).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-    })
   }
 
   async function handleCreateCategory(name: string): Promise<boolean> {
@@ -147,6 +141,7 @@ export function PortfolioManager() {
   function openNew() {
     setEditingId(null)
     setForm(EMPTY)
+    setTechTags([])
     setResultKey('')
     setResultVal('')
     setShowForm(true)
@@ -155,7 +150,8 @@ export function PortfolioManager() {
 
   function openEdit(project: Project) {
     setEditingId(project.id)
-    setForm({ ...project, images: project.images ?? [], content: project.content ?? [], tech: project.tech ?? [] })
+    setForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
+    setTechTags(Array.isArray(project.tech) ? project.tech : [])
     const firstEntry = Object.entries(project.results ?? {})[0]
     setResultKey(firstEntry?.[0] ?? '')
     setResultVal(firstEntry?.[1] ?? '')
@@ -222,10 +218,9 @@ export function PortfolioManager() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = (form.tech ?? []).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = form.images?.[0] ?? form.image ?? ''
-    const payload = { ...form, tech: techArray, results, image: coverImage }
+    const payload = { ...form, tech: techTags, results, image: coverImage }
 
     try {
       const method = editingId ? 'PUT' : 'POST'
@@ -239,9 +234,6 @@ export function PortfolioManager() {
         const saved = await res.json()
         addToast(editingId ? 'Project updated' : 'Project added')
 
-        // Merge new tech tags into global suggestions
-        if (techArray.length > 0) mergeTechSuggestions(techArray)
-
         // Auto-sync: when creating a NEW project, publish a matching feed post
         if (!editingId) {
           const projectData = saved.project ?? payload
@@ -254,7 +246,7 @@ export function PortfolioManager() {
             author: 'Zihad Imtiase',
             image: coverImage,
             media: form.images ?? [],
-            tech: techArray,
+            tech: techTags,
             link: projectData.link ?? '',
             featured: projectData.featured ?? false,
             linkedProjectId: projectData.id ?? saved.project?.id ?? '',
@@ -369,11 +361,10 @@ export function PortfolioManager() {
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
               <TechTagInput
-                value={form.tech ?? []}
-                onChange={(tags) => set('tech', tags)}
+                value={techTags}
+                onChange={setTechTags}
                 suggestions={techSuggestions}
                 disabled={saving}
-                placeholder="React, TailwindCSS, Stripe..."
               />
             </div>
 
