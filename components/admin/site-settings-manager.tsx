@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Upload, Trash2, Image as ImageIcon, Film, Music, Loader2, X, Check,
-  Home, User, Info, Plus, Save, ImagePlus, Settings2, Phone
+  User, FileText, Phone, Plus, Save, ImagePlus, Settings2, MapPin
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
@@ -38,19 +38,6 @@ function mediaKind(url: string): 'image' | 'video' | 'audio' | 'none' {
   return 'image'
 }
 
-function Section({ icon: Icon, title, description, children, accent }: any) {
-  const color = accent ?? '#f4a295'
-  return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-border" style={{ background: color + '0a' }}>
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '20' }}><Icon size={18} style={{ color }} /></div>
-        <div><p className="font-semibold text-foreground text-sm">{title}</p><p className="text-[11px] text-muted-foreground">{description}</p></div>
-      </div>
-      <div className="p-5 space-y-5">{children}</div>
-    </div>
-  )
-}
-
 // --- Main Component ---
 export function SiteSettingsManager() {
   const [settings, setSettings] = useState<SiteSettings>({
@@ -59,14 +46,15 @@ export function SiteSettingsManager() {
     contact: { email: '', phone: '', address: '', shortText: '', socials: [] }
   })
   
+  const [activeTab, setActiveTab] = useState<'profile' | 'about' | 'contact'>('profile')
   const [tagsInput, setTagsInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
-  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
   
-  const [pickingSlot, setPickingSlot] = useState<string | null>(null) // For Existing Media
-  const [cropConfig, setCropConfig] = useState<{ file: File; slot: string; ratio: number } | null>(null) // For Cropper
+  const [uploadingSlot, setUploadingSlot] = useState<string | null>(null)
+  const [pickingSlot, setPickingSlot] = useState<string | null>(null)
+  const [cropConfig, setCropConfig] = useState<{ file: File; slot: string; ratio: number } | null>(null)
 
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -114,13 +102,12 @@ export function SiteSettingsManager() {
 
   async function saveSettings(next: SiteSettings = settings) {
     setSaving(true)
-    // Sync tags before saving
     const tagsArray = tagsInput.split(',').map(t => t.trim()).filter(Boolean)
     const payload = { ...next, hero: { ...next.hero, tags: tagsArray } }
     
     try {
       const res = await fetch('/api/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      if (res.ok) addToast('Settings saved successfully!')
+      if (res.ok) addToast('Settings saved globally!')
       else addToast('Failed to save settings', false)
     } catch {
       addToast('Failed to save settings', false)
@@ -129,7 +116,14 @@ export function SiteSettingsManager() {
     }
   }
 
-  // --- File Upload & Crop Handlers ---
+  function handleLocationChange(val: string) {
+    setSettings(prev => ({
+      ...prev,
+      hero: { ...prev.hero, location: val },
+      contact: { ...prev.contact, address: val }
+    }))
+  }
+
   async function uploadActualFile(file: File, slot: string) {
     setUploadingSlot(slot)
     const fd = new FormData()
@@ -157,10 +151,9 @@ export function SiteSettingsManager() {
 
   function handleFileIntent(file: File, slot: string, ratio: number) {
     if (file.type.startsWith('image/')) setCropConfig({ file, slot, ratio })
-    else uploadActualFile(file, slot) // Video/Audio
+    else uploadActualFile(file, slot) 
   }
 
-  // --- Existing Media Select ---
   function handleExistingMedia(urls: string[], slot: string) {
     if (urls.length === 0) return
     let next = { ...settings }
@@ -172,7 +165,6 @@ export function SiteSettingsManager() {
     saveSettings(next)
   }
 
-  // --- Delete Media ---
   function deleteMedia(slot: string, index?: number) {
     let next = { ...settings }
     if (slot === 'hero.coverMedia') next.hero.coverMedia = ''
@@ -183,7 +175,6 @@ export function SiteSettingsManager() {
     saveSettings(next)
   }
 
-  // --- Dynamic Array Updaters ---
   function updateArray(section: 'about' | 'contact', field: string, index: number, key: string, val: any) {
     let next = { ...settings }
     ;(next[section] as any)[field][index][key] = val
@@ -203,188 +194,239 @@ export function SiteSettingsManager() {
   if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin text-[#f4a295]" /></div>
 
   return (
-    <div className="relative space-y-5 pb-10">
-      {/* Toasts */}
+    <div className="relative space-y-6 pb-10">
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => <div key={t.id} className={cn('px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto', t.ok ? 'bg-foreground text-background' : 'bg-destructive text-white')}>{t.msg}</div>)}
       </div>
 
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Site Settings</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage full website content, images, and texts.</p>
+          <h2 className="text-xl font-bold text-foreground">Global Settings</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Change in one place, update everywhere.</p>
         </div>
-        <button onClick={() => saveSettings()} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-[#1a1a1a] bg-[#f4a295] hover:opacity-90 disabled:opacity-50">
-          {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save All Changes
-        </button>
+        <div className="flex items-center gap-3">
+          <select value={uploadFormat} onChange={(e) => setUploadFormat(e.target.value as any)} className="text-xs px-3 py-2.5 rounded-xl border border-border bg-muted focus:outline-none focus:ring-1 focus:ring-brand/30">
+            <option value="webp">Auto WebP</option>
+            <option value="avif">Auto AVIF</option>
+            <option value="original">Original</option>
+          </select>
+          <button onClick={() => saveSettings()} disabled={saving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold text-[#1a1a1a] bg-[#f4a295] hover:opacity-90 disabled:opacity-50 transition-all active:scale-95 shrink-0">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Changes
+          </button>
+        </div>
       </div>
 
-      {/* --- HERO SECTION --- */}
-      <Section icon={Home} title="Home Page - Hero Banner" description="Cover photo (16:9) and Profile avatar (1:1)" accent="#f4a295">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Cover Media */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cover Banner</label>
-            {settings.hero.coverMedia ? (
-              <div className="relative rounded-xl overflow-hidden bg-muted group border border-border h-40">
-                {mediaKind(settings.hero.coverMedia) === 'video' ? <video src={settings.hero.coverMedia} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={settings.hero.coverMedia} className="w-full h-full object-cover" alt="cover"/>}
-                <div className="absolute top-2 right-2 flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => setPickingSlot('hero.coverMedia')} className="p-1.5 bg-black/60 text-white rounded hover:bg-black" title="Choose Existing"><ImagePlus size={14}/></button>
-                  <button onClick={() => document.getElementById('cov-up')?.click()} className="p-1.5 bg-black/60 text-white rounded hover:bg-black"><Upload size={14}/></button>
-                  <button onClick={() => deleteMedia('hero.coverMedia')} className="p-1.5 bg-red-500/80 text-white rounded hover:bg-red-600"><Trash2 size={14}/></button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2 h-40">
-                <button onClick={() => document.getElementById('cov-up')?.click()} className="flex-1 border-2 border-dashed border-border hover:border-[#f4a295] rounded-xl flex flex-col items-center justify-center text-muted-foreground"><Upload size={18} className="mb-2"/><span className="text-xs">Upload New</span></button>
-                <button onClick={() => setPickingSlot('hero.coverMedia')} className="flex-1 border-2 border-dashed border-border hover:border-[#f4a295] rounded-xl flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={18} className="mb-2"/><span className="text-xs">Choose Existing</span></button>
-              </div>
+      <div className="flex p-1 bg-muted/50 border border-border rounded-2xl overflow-x-auto scrollbar-none">
+        {[
+          { id: 'profile', label: 'General Profile', icon: User },
+          { id: 'about', label: 'About & Portfolio', icon: FileText },
+          { id: 'contact', label: 'Contact & Socials', icon: Phone },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all whitespace-nowrap',
+              activeTab === tab.id ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'
             )}
-            <input id="cov-up" type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'hero.coverMedia', 16/9)} />
-          </div>
+          >
+            <tab.icon size={15} className={activeTab === tab.id ? 'text-[#f4a295]' : ''} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-          {/* Profile Media */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profile Photo / Avatar</label>
-            {settings.hero.profileMedia ? (
-              <div className="relative rounded-xl overflow-hidden bg-muted group border border-border h-40 w-40 mx-auto md:mx-0">
-                {mediaKind(settings.hero.profileMedia) === 'video' ? <video src={settings.hero.profileMedia} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={settings.hero.profileMedia} className="w-full h-full object-cover" alt="profile"/>}
-                <div className="absolute top-2 right-2 flex gap-1.5 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => document.getElementById('pro-up')?.click()} className="p-1.5 bg-black/60 text-white rounded hover:bg-black"><Upload size={14}/></button>
-                  <button onClick={() => deleteMedia('hero.profileMedia')} className="p-1.5 bg-red-500/80 text-white rounded hover:bg-red-600"><Trash2 size={14}/></button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-2 h-40">
-                <button onClick={() => document.getElementById('pro-up')?.click()} className="flex-1 border-2 border-dashed border-border hover:border-[#f4a295] rounded-xl flex flex-col items-center justify-center text-muted-foreground"><Upload size={18} className="mb-2"/><span className="text-xs">Upload New</span></button>
-                <button onClick={() => setPickingSlot('hero.profileMedia')} className="flex-1 border-2 border-dashed border-border hover:border-[#f4a295] rounded-xl flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={18} className="mb-2"/><span className="text-xs">Existing</span></button>
-              </div>
-            )}
-            <input id="pro-up" type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'hero.profileMedia', 1)} />
-          </div>
-        </div>
-      </Section>
-
-      {/* --- HERO TEXTS --- */}
-      <Section icon={User} title="Home Page - Profile Details" description="Bio, tags, location, and stats" accent="#e8806f">
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Full Name</label><input type="text" value={settings.hero.name} onChange={(e) => setSettings({...settings, hero: {...settings.hero, name: e.target.value}})} className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" /></div>
-            <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Professional Title</label><input type="text" value={settings.hero.title} onChange={(e) => setSettings({...settings, hero: {...settings.hero, title: e.target.value}})} className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" /></div>
-            <div className="space-y-1.5 md:col-span-2"><label className="text-xs text-muted-foreground uppercase">Short Bio</label><textarea rows={2} value={settings.hero.bio} onChange={(e) => setSettings({...settings, hero: {...settings.hero, bio: e.target.value}})} className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" /></div>
-            <div className="space-y-1.5 md:col-span-2"><label className="text-xs text-muted-foreground uppercase">Hashtags (Comma separated)</label><input type="text" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" /></div>
-            <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Location</label><input type="text" value={settings.hero.location} onChange={(e) => setSettings({...settings, hero: {...settings.hero, location: e.target.value}})} className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" /></div>
-            <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Join Date / Experience</label><input type="text" value={settings.hero.joinDate} onChange={(e) => setSettings({...settings, hero: {...settings.hero, joinDate: e.target.value}})} className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" /></div>
-          </div>
-          
-          <div className="space-y-2 pt-4">
-            <div className="flex items-center justify-between"><label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stats Counters</label><button type="button" onClick={() => addArrayItem('hero', 'stats', {value: '', label: ''})} className="text-xs text-[#f4a295] hover:underline flex items-center gap-1"><Plus size={14}/> Add Stat</button></div>
-            {settings.hero.stats.map((st, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input value={st.value} onChange={(e) => { let next = {...settings}; next.hero.stats[i].value = e.target.value; setSettings(next) }} placeholder="50+" className="w-20 px-3 py-1.5 rounded-lg bg-background border text-sm" />
-                <input value={st.label} onChange={(e) => { let next = {...settings}; next.hero.stats[i].label = e.target.value; setSettings(next) }} placeholder="Projects" className="flex-1 px-3 py-1.5 rounded-lg bg-background border text-sm" />
-                <button type="button" onClick={() => { let next = {...settings}; next.hero.stats.splice(i,1); setSettings(next) }} className="text-red-500 p-2 hover:bg-red-500/10 rounded"><X size={16}/></button>
-              </div>
-            ))}
-          </div>
-      </Section>
-
-      {/* --- ABOUT PAGE MEDIA --- */}
-      <Section icon={ImageIcon} title="About Page - Media Gallery" description="Main image (5:7 ratio) and extra gallery images." accent="#9db8e8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {settings.about.media.map((url, i) => (
-            <div key={i} className="relative aspect-[5/7] rounded-xl overflow-hidden border border-border group bg-muted">
-              {mediaKind(url) === 'video' ? <video src={url} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={url} className="w-full h-full object-cover" alt="" />}
-              {i === 0 && <span className="absolute top-2 left-2 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase">Cover</span>}
-              <button onClick={() => deleteMedia('about.media', i)} className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded hover:bg-red-600 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
-            </div>
-          ))}
-          <div className="aspect-[5/7] flex flex-col gap-2">
-            <button onClick={() => document.getElementById('abt-up')?.click()} className="flex-1 border-2 border-dashed border-border hover:border-[#f4a295] rounded-xl flex flex-col items-center justify-center text-muted-foreground"><Upload size={18} className="mb-1"/><span className="text-[10px]">Upload</span></button>
-            <button onClick={() => setPickingSlot('about.media')} className="flex-1 border-2 border-dashed border-border hover:border-[#f4a295] rounded-xl flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={18} className="mb-1"/><span className="text-[10px]">Existing</span></button>
-          </div>
-          <input id="abt-up" type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => Array.from(e.target.files || []).forEach(f => handleFileIntent(f, 'about.media', 5/7))} />
-        </div>
-      </Section>
-
-      {/* --- ABOUT PAGE CONTENT --- */}
-      <Section icon={Info} title="About Page - Contents" description="Manage intro text, tech stack, timeline, and work values." accent="#a8d5c2">
+      <div className="bg-card border border-border rounded-2xl p-4 sm:p-5 md:p-7 shadow-sm">
         
-        {/* Intro */}
-        <div className="space-y-1.5 mb-6">
-          <label className="text-xs font-semibold text-muted-foreground uppercase">Introduction Paragraphs</label>
-          <textarea rows={4} value={settings.about.introText} onChange={(e) => setSettings({...settings, about: {...settings.about, introText: e.target.value}})} placeholder="Write about yourself..." className="w-full px-3 py-2 rounded-xl bg-background border focus:border-[#f4a295] outline-none" />
-        </div>
-
-        {/* Tech Stack */}
-        <div className="space-y-2 mb-6 border-t border-border pt-4">
-          <div className="flex items-center justify-between"><label className="text-xs font-semibold text-foreground uppercase">Tech Stack</label><button type="button" onClick={() => addArrayItem('about', 'stack', {name: '', level: 50})} className="text-xs text-[#a8d5c2] font-semibold hover:underline flex items-center gap-1"><Plus size={14}/> Add Tech</button></div>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {settings.about.stack.map((item, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 border rounded-xl bg-muted/20">
-                <input value={item.name} onChange={(e) => updateArray('about', 'stack', i, 'name', e.target.value)} placeholder="React" className="flex-1 px-2 py-1 rounded-lg border text-sm" />
-                <input type="number" value={item.level} onChange={(e) => updateArray('about', 'stack', i, 'level', Number(e.target.value))} placeholder="90" className="w-16 px-2 py-1 rounded-lg border text-sm" />
-                <span className="text-xs text-muted-foreground">%</span>
-                <button type="button" onClick={() => removeArrayItem('about', 'stack', i)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded"><Trash2 size={14}/></button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Values */}
-        <div className="space-y-2 mb-6 border-t border-border pt-4">
-          <div className="flex items-center justify-between"><label className="text-xs font-semibold text-foreground uppercase">How I Work (Values)</label><button type="button" onClick={() => addArrayItem('about', 'values', {title: '', desc: ''})} className="text-xs text-[#a8d5c2] font-semibold hover:underline flex items-center gap-1"><Plus size={14}/> Add Value</button></div>
-          <div className="space-y-2">
-            {settings.about.values.map((item, i) => (
-              <div key={i} className="flex gap-2 p-3 border rounded-xl bg-muted/20 relative">
-                <div className="flex-1 space-y-2">
-                  <input value={item.title} onChange={(e) => updateArray('about', 'values', i, 'title', e.target.value)} placeholder="Title" className="w-full px-3 py-1.5 rounded-lg border text-sm font-semibold" />
-                  <textarea rows={2} value={item.desc} onChange={(e) => updateArray('about', 'values', i, 'desc', e.target.value)} placeholder="Description" className="w-full px-3 py-1.5 rounded-lg border text-sm resize-none" />
+        {/* 1. GENERAL PROFILE TAB */}
+        {activeTab === 'profile' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><ImageIcon size={16} className="text-[#f4a295]"/> Visual Identity</h3>
+              <div className="relative rounded-2xl border border-border bg-muted h-48 md:h-64 mb-16 group/cover overflow-hidden">
+                {settings.hero.coverMedia ? (
+                   mediaKind(settings.hero.coverMedia) === 'video' ? <video src={settings.hero.coverMedia} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={settings.hero.coverMedia} className="w-full h-full object-cover" alt="cover"/>
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={32} className="mb-2 opacity-50"/><span className="text-xs">No Cover Added</span></div>
+                )}
+                
+                <div className="absolute top-3 right-3 flex gap-2 opacity-100 sm:opacity-0 group-hover/cover:opacity-100 transition-opacity">
+                   <button onClick={() => setPickingSlot('hero.coverMedia')} className="px-3 py-1.5 bg-black/60 text-white rounded-lg hover:bg-black text-xs font-semibold backdrop-blur">Gallery</button>
+                   <button onClick={() => document.getElementById('cov-up')?.click()} className="px-3 py-1.5 bg-black/60 text-white rounded-lg hover:bg-black text-xs font-semibold backdrop-blur">Upload</button>
+                   {settings.hero.coverMedia && <button onClick={() => deleteMedia('hero.coverMedia')} className="p-1.5 bg-red-500/80 text-white rounded-lg hover:bg-red-600"><Trash2 size={14}/></button>}
                 </div>
-                <button type="button" onClick={() => removeArrayItem('about', 'values', i)} className="text-red-500 hover:bg-red-500/10 p-2 rounded h-fit"><Trash2 size={16}/></button>
-              </div>
-            ))}
-          </div>
-        </div>
+                <input id="cov-up" type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'hero.coverMedia', 16/9)} />
 
-        {/* Timeline */}
-        <div className="space-y-2 border-t border-border pt-4">
-          <div className="flex items-center justify-between"><label className="text-xs font-semibold text-foreground uppercase">Journey / Timeline</label><button type="button" onClick={() => addArrayItem('about', 'timeline', {year: '', title: '', place: '', desc: ''})} className="text-xs text-[#a8d5c2] font-semibold hover:underline flex items-center gap-1"><Plus size={14}/> Add Event</button></div>
-          <div className="space-y-2">
-            {settings.about.timeline.map((item, i) => (
-              <div key={i} className="p-3 border rounded-xl bg-muted/20 relative space-y-2">
-                <div className="flex gap-2">
-                  <input value={item.year} onChange={(e) => updateArray('about', 'timeline', i, 'year', e.target.value)} placeholder="Year (e.g. 2024)" className="w-24 px-3 py-1.5 rounded-lg border text-sm" />
-                  <input value={item.title} onChange={(e) => updateArray('about', 'timeline', i, 'title', e.target.value)} placeholder="Job Title" className="flex-1 px-3 py-1.5 rounded-lg border text-sm font-semibold" />
-                  <button type="button" onClick={() => removeArrayItem('about', 'timeline', i)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded h-fit"><Trash2 size={16}/></button>
+                <div className="absolute -bottom-12 left-4 sm:left-6 group/avatar">
+                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-card bg-muted overflow-hidden relative shadow-lg">
+                    {settings.hero.profileMedia ? (
+                       mediaKind(settings.hero.profileMedia) === 'video' ? <video src={settings.hero.profileMedia} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={settings.hero.profileMedia} className="w-full h-full object-cover" alt="profile"/>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-background"><User size={32}/></div>
+                    )}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/avatar:opacity-100 flex flex-col items-center justify-center gap-1 transition-opacity">
+                      <button onClick={() => document.getElementById('pro-up')?.click()} className="text-white hover:text-[#f4a295]"><Upload size={16}/></button>
+                      <button onClick={() => setPickingSlot('hero.profileMedia')} className="text-white hover:text-[#f4a295]"><ImagePlus size={16}/></button>
+                    </div>
+                  </div>
+                  <input id="pro-up" type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'hero.profileMedia', 1)} />
                 </div>
-                <input value={item.place} onChange={(e) => updateArray('about', 'timeline', i, 'place', e.target.value)} placeholder="Company / Place" className="w-full px-3 py-1.5 rounded-lg border text-sm" />
-                <textarea rows={2} value={item.desc} onChange={(e) => updateArray('about', 'timeline', i, 'desc', e.target.value)} placeholder="Description" className="w-full px-3 py-1.5 rounded-lg border text-sm resize-none" />
               </div>
-            ))}
-          </div>
-        </div>
-      </Section>
-
-      {/* --- CONTACT PAGE CONTENT --- */}
-      <Section icon={Phone} title="Contact Page - Contents" description="Manage email, phone, location, and social links." accent="#bd93f9">
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Email Address</label><input type="email" value={settings.contact.email} onChange={(e) => setSettings({...settings, contact: {...settings.contact, email: e.target.value}})} placeholder="hello@zihad.com" className="w-full px-3 py-2 rounded-xl bg-background border outline-none" /></div>
-            <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Phone / WhatsApp</label><input type="text" value={settings.contact.phone} onChange={(e) => setSettings({...settings, contact: {...settings.contact, phone: e.target.value}})} placeholder="+880..." className="w-full px-3 py-2 rounded-xl bg-background border outline-none" /></div>
-            <div className="space-y-1.5 md:col-span-2"><label className="text-xs text-muted-foreground uppercase">Short Intro Text</label><textarea rows={2} value={settings.contact.shortText} onChange={(e) => setSettings({...settings, contact: {...settings.contact, shortText: e.target.value}})} placeholder="Let's build something great..." className="w-full px-3 py-2 rounded-xl bg-background border outline-none" /></div>
-         </div>
-         <div className="space-y-2 pt-4 border-t border-border mt-4">
-            <div className="flex items-center justify-between"><label className="text-xs font-semibold text-foreground uppercase">Social Links</label><button type="button" onClick={() => addArrayItem('contact', 'socials', {platform: '', url: ''})} className="text-xs text-[#bd93f9] font-semibold hover:underline flex items-center gap-1"><Plus size={14}/> Add Link</button></div>
-            <div className="grid sm:grid-cols-2 gap-2">
-              {settings.contact.socials.map((item, i) => (
-                <div key={i} className="flex gap-2 p-2 border rounded-xl bg-muted/20">
-                  <input value={item.platform} onChange={(e) => updateArray('contact', 'socials', i, 'platform', e.target.value)} placeholder="LinkedIn" className="w-1/3 px-2 py-1 rounded-lg border text-sm" />
-                  <input value={item.url} onChange={(e) => updateArray('contact', 'socials', i, 'url', e.target.value)} placeholder="https://..." className="flex-1 px-2 py-1 rounded-lg border text-sm" />
-                  <button type="button" onClick={() => removeArrayItem('contact', 'socials', i)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded"><Trash2 size={14}/></button>
-                </div>
-              ))}
             </div>
-         </div>
-      </Section>
+
+            <div>
+               <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><User size={16} className="text-[#f4a295]"/> Basic Information</h3>
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Full Name</label><input type="text" value={settings.hero.name} onChange={(e) => setSettings({...settings, hero: {...settings.hero, name: e.target.value}})} className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors min-w-0" /></div>
+                  <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Professional Title</label><input type="text" value={settings.hero.title} onChange={(e) => setSettings({...settings, hero: {...settings.hero, title: e.target.value}})} className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors min-w-0" /></div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-xs text-muted-foreground uppercase">Short Bio</label>
+                    <textarea rows={3} value={settings.hero.bio} onChange={(e) => setSettings({...settings, hero: {...settings.hero, bio: e.target.value}})} className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors resize-y min-w-0" />
+                    <p className="text-[10px] text-muted-foreground">Supports formatting via spacing and newlines.</p>
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2"><label className="text-xs text-muted-foreground uppercase">Keywords / Hashtags</label><input type="text" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="e.g. #frontend, #webflow" className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors min-w-0" /></div>
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground uppercase flex items-center gap-1"><MapPin size={12}/> Global Location</label>
+                    <input type="text" value={settings.hero.location} onChange={(e) => handleLocationChange(e.target.value)} className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors min-w-0" />
+                    <p className="text-[10px] text-muted-foreground">Updates on Hero, About, and Contact pages.</p>
+                  </div>
+                  <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Join Date / Experience</label><input type="text" value={settings.hero.joinDate} onChange={(e) => setSettings({...settings, hero: {...settings.hero, joinDate: e.target.value}})} className="w-full px-3 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#f4a295] focus:bg-background transition-colors min-w-0" /></div>
+               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. ABOUT & PORTFOLIO TAB */}
+        {activeTab === 'about' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><ImageIcon size={16} className="text-[#9db8e8]"/> About Gallery (5:7 Ratio)</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {settings.about.media.map((url, i) => (
+                  <div key={i} className="relative aspect-[5/7] rounded-xl overflow-hidden border border-border group bg-muted shadow-sm">
+                    {mediaKind(url) === 'video' ? <video src={url} className="w-full h-full object-cover" autoPlay loop muted /> : <img src={url} className="w-full h-full object-cover" alt="" />}
+                    {i === 0 && <span className="absolute top-2 left-2 bg-black/70 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase backdrop-blur">Cover</span>}
+                    <button onClick={() => deleteMedia('about.media', i)} className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-lg hover:bg-red-600 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14}/></button>
+                  </div>
+                ))}
+                <div className="aspect-[5/7] flex flex-col gap-2">
+                  <button onClick={() => document.getElementById('abt-up')?.click()} className="flex-1 border-2 border-dashed border-border hover:border-[#9db8e8] hover:bg-muted/30 transition-colors rounded-xl flex flex-col items-center justify-center text-muted-foreground"><Upload size={18} className="mb-1"/><span className="text-xs font-medium">Upload</span></button>
+                  <button onClick={() => setPickingSlot('about.media')} className="flex-1 border-2 border-dashed border-border hover:border-[#9db8e8] hover:bg-muted/30 transition-colors rounded-xl flex flex-col items-center justify-center text-muted-foreground"><ImagePlus size={18} className="mb-1"/><span className="text-xs font-medium">Gallery</span></button>
+                </div>
+                <input id="abt-up" type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => Array.from(e.target.files || []).forEach(f => handleFileIntent(f, 'about.media', 5/7))} />
+              </div>
+            </div>
+
+            <div className="border-t border-border pt-6 space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Detailed Introduction</label>
+              <textarea rows={6} value={settings.about.introText} onChange={(e) => setSettings({...settings, about: {...settings.about, introText: e.target.value}})} placeholder="Write your full story here..." className="w-full px-4 py-3 rounded-xl bg-muted/50 border outline-none focus:border-[#9db8e8] focus:bg-background transition-colors resize-y leading-relaxed text-sm min-w-0" />
+              <p className="text-[10px] text-muted-foreground">Press Enter twice to create a new paragraph. Text will be displayed exactly as formatted here.</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-border pt-6">
+              {/* Stats */}
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold text-foreground">Highlight Stats</h3><button onClick={() => addArrayItem('hero', 'stats', {value: '', label: ''})} className="text-xs font-semibold text-[#9db8e8] hover:underline flex items-center gap-1 shrink-0"><Plus size={14}/> Add Stat</button></div>
+                <div className="space-y-2">
+                  {settings.hero.stats.map((st, i) => (
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-muted/30 p-3 sm:p-2 rounded-xl border border-border relative">
+                      <div className="flex items-center gap-2 flex-1 pr-8 sm:pr-0">
+                        <input value={st.value} onChange={(e) => { let next = {...settings}; next.hero.stats[i].value = e.target.value; setSettings(next) }} placeholder="50+" className="w-16 sm:w-20 px-3 py-1.5 rounded-lg bg-background border text-sm font-bold outline-none focus:border-[#9db8e8] min-w-0" />
+                        <input value={st.label} onChange={(e) => { let next = {...settings}; next.hero.stats[i].label = e.target.value; setSettings(next) }} placeholder="Label (e.g. Clients)" className="flex-1 px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#9db8e8] min-w-0" />
+                      </div>
+                      <button onClick={() => { let next = {...settings}; next.hero.stats.splice(i,1); setSettings(next) }} className="absolute top-2 right-2 sm:static sm:top-auto sm:right-auto text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg shrink-0"><Trash2 size={15}/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Tech Stack */}
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold text-foreground">Tech Stack</h3><button onClick={() => addArrayItem('about', 'stack', {name: '', level: 50})} className="text-xs font-semibold text-[#9db8e8] hover:underline flex items-center gap-1 shrink-0"><Plus size={14}/> Add Skill</button></div>
+                <div className="space-y-2">
+                  {settings.about.stack.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-muted/30 p-2 sm:p-3 rounded-xl border border-border">
+                      <input value={item.name} onChange={(e) => updateArray('about', 'stack', i, 'name', e.target.value)} placeholder="React JS" className="flex-1 px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#9db8e8] min-w-0" />
+                      <input type="number" value={item.level} onChange={(e) => updateArray('about', 'stack', i, 'level', Number(e.target.value))} className="w-14 sm:w-16 px-2 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#9db8e8] min-w-0 text-center" />
+                      <span className="text-xs text-muted-foreground font-semibold shrink-0">%</span>
+                      <button onClick={() => removeArrayItem('about', 'stack', i)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg shrink-0"><Trash2 size={15}/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-border pt-6">
+              {/* Values */}
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold text-foreground">Core Values</h3><button onClick={() => addArrayItem('about', 'values', {title: '', desc: ''})} className="text-xs font-semibold text-[#9db8e8] hover:underline flex items-center gap-1 shrink-0"><Plus size={14}/> Add Value</button></div>
+                <div className="space-y-3">
+                  {settings.about.values.map((item, i) => (
+                    <div key={i} className="flex items-start gap-2 bg-muted/30 p-3 rounded-xl border border-border relative">
+                      <div className="flex-1 space-y-2 pr-8 sm:pr-2 min-w-0">
+                        <input value={item.title} onChange={(e) => updateArray('about', 'values', i, 'title', e.target.value)} placeholder="Title" className="w-full px-3 py-1.5 rounded-lg bg-background border text-sm font-bold outline-none focus:border-[#9db8e8] min-w-0" />
+                        <textarea rows={3} value={item.desc} onChange={(e) => updateArray('about', 'values', i, 'desc', e.target.value)} placeholder="Description" className="w-full px-3 py-1.5 rounded-lg bg-background border text-sm resize-y outline-none focus:border-[#9db8e8] min-w-0" />
+                      </div>
+                      <button onClick={() => removeArrayItem('about', 'values', i)} className="absolute top-3 right-2 sm:static sm:top-auto sm:right-auto text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg mt-0 shrink-0"><Trash2 size={16}/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="min-w-0">
+                <div className="flex items-center justify-between mb-3"><h3 className="text-sm font-bold text-foreground">Timeline Journey</h3><button onClick={() => addArrayItem('about', 'timeline', {year: '', title: '', place: '', desc: ''})} className="text-xs font-semibold text-[#9db8e8] hover:underline flex items-center gap-1 shrink-0"><Plus size={14}/> Add Event</button></div>
+                <div className="space-y-3">
+                  {settings.about.timeline.map((item, i) => (
+                    <div key={i} className="bg-muted/30 p-3 rounded-xl border border-border space-y-2 relative">
+                      <div className="flex flex-col sm:flex-row gap-2 pr-8 sm:pr-8">
+                        <input value={item.year} onChange={(e) => updateArray('about', 'timeline', i, 'year', e.target.value)} placeholder="2024" className="w-full sm:w-20 px-3 py-1.5 rounded-lg bg-background border text-sm font-bold outline-none focus:border-[#9db8e8] min-w-0" />
+                        <input value={item.title} onChange={(e) => updateArray('about', 'timeline', i, 'title', e.target.value)} placeholder="Job Role" className="flex-1 px-3 py-1.5 rounded-lg bg-background border text-sm font-bold outline-none focus:border-[#9db8e8] min-w-0" />
+                      </div>
+                      <input value={item.place} onChange={(e) => updateArray('about', 'timeline', i, 'place', e.target.value)} placeholder="Company / Location" className="w-full px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#9db8e8] min-w-0" />
+                      <textarea rows={3} value={item.desc} onChange={(e) => updateArray('about', 'timeline', i, 'desc', e.target.value)} placeholder="Description..." className="w-full px-3 py-1.5 rounded-lg bg-background border text-sm resize-y outline-none focus:border-[#9db8e8] min-w-0" />
+                      <button onClick={() => removeArrayItem('about', 'timeline', i)} className="absolute top-3 right-2 text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg shrink-0"><Trash2 size={15}/></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* 3. CONTACT & SOCIALS TAB */}
+        {activeTab === 'contact' && (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div>
+              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><Phone size={16} className="text-[#a8d5c2]"/> Direct Contact Info</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Email Address</label><input type="email" value={settings.contact.email} onChange={(e) => setSettings({...settings, contact: {...settings.contact, email: e.target.value}})} placeholder="hello@domain.com" className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#a8d5c2] focus:bg-background transition-colors min-w-0" /></div>
+                <div className="space-y-1.5"><label className="text-xs text-muted-foreground uppercase">Phone / WhatsApp</label><input type="text" value={settings.contact.phone} onChange={(e) => setSettings({...settings, contact: {...settings.contact, phone: e.target.value}})} placeholder="+880 1..." className="w-full px-4 py-2.5 rounded-xl bg-muted/50 border outline-none focus:border-[#a8d5c2] focus:bg-background transition-colors min-w-0" /></div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-xs text-muted-foreground uppercase">Contact Page Message</label>
+                  <textarea rows={4} value={settings.contact.shortText} onChange={(e) => setSettings({...settings, contact: {...settings.contact, shortText: e.target.value}})} placeholder="Got a project in mind?..." className="w-full px-4 py-3 rounded-xl bg-muted/50 border outline-none focus:border-[#a8d5c2] focus:bg-background transition-colors resize-y min-w-0" />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t border-border pt-6">
+               <div className="flex items-center justify-between mb-4"><h3 className="text-sm font-bold text-foreground">Social Media Links</h3><button onClick={() => addArrayItem('contact', 'socials', {platform: '', url: ''})} className="text-xs font-semibold text-[#a8d5c2] hover:underline flex items-center gap-1 shrink-0"><Plus size={14}/> Add Link</button></div>
+               <div className="grid lg:grid-cols-2 gap-3">
+                  {settings.contact.socials.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 sm:p-3 bg-muted/30 border border-border rounded-xl">
+                      <input value={item.platform} onChange={(e) => updateArray('contact', 'socials', i, 'platform', e.target.value)} placeholder="LinkedIn" className="w-1/3 min-w-0 px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#a8d5c2]" />
+                      <input value={item.url} onChange={(e) => updateArray('contact', 'socials', i, 'url', e.target.value)} placeholder="https://..." className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-background border text-sm outline-none focus:border-[#a8d5c2]" />
+                      <button onClick={() => removeArrayItem('contact', 'socials', i)} className="text-red-500 hover:bg-red-500/10 p-1.5 rounded-lg shrink-0"><Trash2 size={15}/></button>
+                    </div>
+                  ))}
+               </div>
+            </div>
+          </div>
+        )}
+
+      </div>
 
       {/* --- MODALS --- */}
       <ImageCropperModal
