@@ -56,6 +56,7 @@ export function FeedCategoryClient({ items, label }: FeedCategoryClientProps) {
               projectTech={item.tech}
               projectLink={item.link}
               linkedProjectId={item.linkedProjectId}
+              pinned={item.pinned}
             />
           ))
         )}

@@ -251,13 +251,19 @@ export function FeedItem({
 
   return (
     <article
-      className={cn('px-4 py-5 border-b border-border transition-colors relative', detailHref ? 'cursor-pointer hover:bg-muted/30' : '')}
+      className={cn('px-4 py-5 border-b border-border transition-colors relative', pinned && 'bg-[#f4a295]/5', detailHref ? 'cursor-pointer hover:bg-muted/30' : '')}
       onClick={detailHref ? () => router.push(detailHref) : undefined}
       role={detailHref ? 'button' : undefined}
       tabIndex={detailHref ? 0 : undefined}
       onKeyDown={detailHref ? (e) => { if (e.key === 'Enter') router.push(detailHref) } : undefined}
       aria-label={detailHref && title ? `Read full post: ${title}` : undefined}
     >
+      {pinned && (
+        <div className="flex items-center gap-1.5 mb-2 ml-[52px]">
+          <Pin size={11} className="text-[#f4a295]" />
+          <span className="text-[11px] font-semibold text-[#f4a295] uppercase tracking-wider">Pinned</span>
+        </div>
+      )}
       {inner}
     </article>
   )

@@ -5,6 +5,14 @@
 
 // ── Feed ─────────────────────────────────────────────────────────────────────
 
+export interface FeedComment {
+  id: string
+  name: string
+  avatar: string
+  text: string
+  date: string
+}
+
 export interface FeedItem {
   id: string
   type: 'article' | 'testimonial' | 'project' | 'post'
@@ -26,6 +34,8 @@ export interface FeedItem {
   link?: string
   featured?: boolean
   linkedProjectId?: string
+  pinned?: boolean
+  comments?: FeedComment[]
 }
 
 // ── Portfolio ─────────────────────────────────────────────────────────────────

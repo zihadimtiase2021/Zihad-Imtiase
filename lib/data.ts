@@ -20,7 +20,11 @@ function stripId<T extends { _id?: unknown }>(doc: T): Omit<T, '_id'> {
 export async function readFeedData(): Promise<{ items: FeedItem[] }> {
   try {
     const db = await getDb()
-    const docs = await db.collection('feed').find({}).sort({ date: -1, _id: -1 }).toArray()
+    const docs = await db
+      .collection('feed')
+      .find({})
+      .sort({ pinned: -1, date: -1, _id: -1 })
+      .toArray()
     return { items: docs.map((d) => stripId(d) as unknown as FeedItem) }
   } catch (error) {
     console.error('[readFeedData]', error)

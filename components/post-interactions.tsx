@@ -16,6 +16,7 @@ interface PostInteractionsProps {
   postId: string
   initialLikes?: number
   initialComments?: Comment[]
+  initialReplies?: number
 }
 
 interface VisitorIdentity {
@@ -24,10 +25,11 @@ interface VisitorIdentity {
   isAnonymous: boolean
 }
 
-export function PostInteractions({ postId, initialLikes = 0, initialComments = [] }: PostInteractionsProps) {
+export function PostInteractions({ postId, initialLikes = 0, initialComments = [], initialReplies }: PostInteractionsProps) {
   const [likes, setLikes] = useState(initialLikes)
   const [isLiked, setIsLiked] = useState(false)
   const [comments, setComments] = useState<Comment[]>(initialComments)
+  const [commentsLoaded, setCommentsLoaded] = useState(false)
   
   const [isCommentOpen, setIsCommentOpen] = useState(false)
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false)
@@ -46,17 +48,19 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     if (saved) setIdentity(JSON.parse(saved))
   }, [])
 
-  const sendInteraction = async (action: 'like' | 'comment', newComment?: Comment) => {
-    try {
-      await fetch('/api/interact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postId, action, comment: newComment })
+  // Fetch persisted comments from DB when comment section is opened
+  useEffect(() => {
+    if (!isCommentOpen || commentsLoaded) return
+    fetch(`/api/interact?postId=${encodeURIComponent(postId)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data.comments)) {
+          setComments(data.comments)
+        }
+        setCommentsLoaded(true)
       })
-    } catch (e) {
-      console.error('Interaction failed', e)
-    }
-  }
+      .catch(() => setCommentsLoaded(true))
+  }, [isCommentOpen, commentsLoaded, postId])
 
   const handleLikeClick = () => {
     if (!identity) {
@@ -74,11 +78,15 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     } else {
       setLikes(p => p + 1)
       setIsLiked(true)
-      sendInteraction('like')
+      fetch('/api/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, action: 'like' }),
+      }).catch(() => {})
     }
   }
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!commentText.trim()) return
 
@@ -87,10 +95,10 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
       setIsIdentityModalOpen(true)
       return
     }
-    executeComment()
+    await executeComment()
   }
 
-  const executeComment = () => {
+  const executeComment = async () => {
     if (!identity) return
     const newComment: Comment = {
       id: Date.now().toString(),
@@ -100,9 +108,26 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
       date: new Date().toISOString()
     }
     
+    // Optimistic update
     setComments(prev => [...prev, newComment])
     setCommentText('')
-    sendInteraction('comment', newComment)
+
+    try {
+      const res = await fetch('/api/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId, action: 'comment', comment: newComment })
+      })
+      const data = await res.json()
+      // Replace optimistic comment with server-confirmed comment (normalized date etc.)
+      if (data.success && data.comment) {
+        setComments(prev =>
+          prev.map((c) => (c.id === newComment.id ? data.comment : c))
+        )
+      }
+    } catch (e) {
+      console.error('Comment save failed', e)
+    }
   }
 
   const handleAvatarUpload = async (file: File) => {
@@ -119,7 +144,7 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     }
   }
 
-  const saveIdentity = (isAnonymous: boolean) => {
+  const saveIdentity = async (isAnonymous: boolean) => {
     const newIdentity = {
       name: isAnonymous ? 'Anonymous' : identityName || 'Anonymous',
       avatar: isAnonymous ? '' : identityAvatar,
@@ -130,7 +155,7 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     setIsIdentityModalOpen(false)
 
     if (pendingAction === 'like') executeLike()
-    if (pendingAction === 'comment') executeComment()
+    if (pendingAction === 'comment') await executeComment()
     setPendingAction(null)
   }
 
