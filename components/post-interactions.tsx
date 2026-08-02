@@ -26,22 +26,19 @@ interface VisitorIdentity {
 
 export function PostInteractions({ postId, initialLikes = 0, initialComments = [] }: PostInteractionsProps) {
   const [likes, setLikes] = useState(initialLikes)
-  const [isLiked, setIsLiked] = useState(false) // Local state
+  const [isLiked, setIsLiked] = useState(false)
   const [comments, setComments] = useState<Comment[]>(initialComments)
   
-  // UI States
   const [isCommentOpen, setIsCommentOpen] = useState(false)
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'like' | 'comment' | null>(null)
   
-  // Inputs
   const [commentText, setCommentText] = useState('')
   const [identityName, setIdentityName] = useState('')
   const [identityAvatar, setIdentityAvatar] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Load identity from local storage on mount
   const [identity, setIdentity] = useState<VisitorIdentity | null>(null)
 
   useEffect(() => {
@@ -49,7 +46,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     if (saved) setIdentity(JSON.parse(saved))
   }, [])
 
-  // --- API Call Helper ---
   const sendInteraction = async (action: 'like' | 'comment', newComment?: Comment) => {
     try {
       await fetch('/api/interact', {
@@ -62,7 +58,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     }
   }
 
-  // --- Actions ---
   const handleLikeClick = () => {
     if (!identity) {
       setPendingAction('like')
@@ -99,19 +94,17 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     if (!identity) return
     const newComment: Comment = {
       id: Date.now().toString(),
-      name: identity.isAnonymous ? 'Anonymous' : identity.name || 'Visitor',
+      name: identity.isAnonymous ? 'Anonymous' : identity.name || 'Anonymous',
       avatar: identity.isAnonymous ? '' : identity.avatar,
       text: commentText,
       date: new Date().toISOString()
     }
     
-    // Optimistic Update
     setComments(prev => [...prev, newComment])
     setCommentText('')
     sendInteraction('comment', newComment)
   }
 
-  // --- Identity Modal Handlers ---
   const handleAvatarUpload = async (file: File) => {
     setIsUploading(true)
     const fd = new FormData()
@@ -128,7 +121,7 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
 
   const saveIdentity = (isAnonymous: boolean) => {
     const newIdentity = {
-      name: isAnonymous ? 'Anonymous' : identityName || 'Visitor',
+      name: isAnonymous ? 'Anonymous' : identityName || 'Anonymous',
       avatar: isAnonymous ? '' : identityAvatar,
       isAnonymous
     }
@@ -136,7 +129,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     localStorage.setItem('zd-visitor-identity', JSON.stringify(newIdentity))
     setIsIdentityModalOpen(false)
 
-    // Resume pending action
     if (pendingAction === 'like') executeLike()
     if (pendingAction === 'comment') executeComment()
     setPendingAction(null)
@@ -144,7 +136,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
 
   return (
     <div className="pt-3 border-t border-border mt-4">
-      {/* Action Buttons */}
       <div className="flex items-center gap-6">
         <button 
           onClick={handleLikeClick}
@@ -163,11 +154,8 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
         </button>
       </div>
 
-      {/* Comments Section */}
       {isCommentOpen && (
         <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-          
-          {/* Comment List */}
           {comments.length > 0 ? (
             <div className="space-y-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin">
               {comments.map((c) => (
@@ -191,7 +179,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
             <p className="text-xs text-muted-foreground text-center py-4">No comments yet. Be the first!</p>
           )}
 
-          {/* Comment Input */}
           <form onSubmit={handleCommentSubmit} className="flex gap-2">
             <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden border border-border">
                {identity && !identity.isAnonymous && identity.avatar ? (
@@ -220,11 +207,15 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
         </div>
       )}
 
-      {/* Identity Setup Modal */}
       {isIdentityModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-sm bg-card border border-border rounded-3xl shadow-2xl overflow-hidden p-6 relative">
-            <button onClick={() => { setIsIdentityModalOpen(false); setPendingAction(null) }} className="absolute top-4 right-4 p-2 text-muted-foreground hover:bg-muted rounded-full">
+            
+            {/* 🔴 এখানে মডাল ক্লোজ করলে অটোমেটিক Anonymous সেভ হবে */}
+            <button 
+              onClick={() => saveIdentity(true)} 
+              className="absolute top-4 right-4 p-2 text-muted-foreground hover:bg-muted rounded-full transition-colors"
+            >
               <X size={18} />
             </button>
             
@@ -232,7 +223,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
             <p className="text-xs text-muted-foreground mb-6">How would you like to interact?</p>
 
             <div className="flex flex-col gap-5">
-              {/* Avatar Upload */}
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full border-2 border-dashed border-border flex items-center justify-center bg-muted relative overflow-hidden group">
                   {identityAvatar ? (
@@ -257,7 +247,6 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col gap-2 mt-2">
                 <button 
                   onClick={() => saveIdentity(false)}

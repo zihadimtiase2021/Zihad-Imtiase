@@ -124,7 +124,7 @@ export function FeedDetailClient() {
             className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0"
             style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
           >
-            {displayName.slice(0, 2).toUpperCase()}
+            {(displayName || 'A').slice(0, 2).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-sm text-foreground">{displayName}</p>
