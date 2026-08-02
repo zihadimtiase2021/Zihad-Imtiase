@@ -13,7 +13,8 @@ function getStackIcon(name: string) {
 }
 
 export default async function AboutPage() {
-  const siteSettings = await readSettingsData()
+  // Vercel Build Error Fix: Typecasting as any
+  const siteSettings = (await readSettingsData()) as any
   
   // Safe default fallbacks
   const aboutMedia: string[] = Array.isArray(siteSettings?.about?.media) ? siteSettings.about.media : []
@@ -81,8 +82,8 @@ export default async function AboutPage() {
 
       {/* Intro section */}
       <div className="px-5 py-6 border-b border-border">
-        {introText.split('\n').map((paragraph, idx) => (
-          <p key={idx} className="text-sm text-foreground leading-relaxed mb-4 last:mb-0">{paragraph}</p>
+        {introText.split('\n').map((paragraph: string, idx: number) => (
+          <p key={idx} className="text-sm text-foreground leading-relaxed mb-4 last:mb-0 whitespace-pre-wrap">{paragraph}</p>
         ))}
 
         <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6 text-xs text-muted-foreground">
@@ -100,7 +101,7 @@ export default async function AboutPage() {
             {values.map((v: any, i: number) => (
               <div key={i} className="p-4 rounded-2xl border border-border bg-card hover:border-[#f4a295]/40 transition-colors">
                 <p className="font-semibold text-sm text-foreground mb-1">{v.title}</p>
-                <p className="text-xs text-muted-foreground leading-relaxed">{v.desc}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{v.desc}</p>
               </div>
             ))}
           </div>
@@ -147,7 +148,7 @@ export default async function AboutPage() {
                   <p className="text-xs text-muted-foreground mb-0.5">{item.year}</p>
                   <p className="font-semibold text-sm text-foreground">{item.title}</p>
                   <p className="text-xs font-medium mb-1.5" style={{ color: '#f4a295' }}>{item.place}</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">{item.desc}</p>
                 </div>
               </div>
             ))}

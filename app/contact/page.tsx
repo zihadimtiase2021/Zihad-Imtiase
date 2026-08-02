@@ -4,10 +4,10 @@ import { readSettingsData } from '@/lib/data'
 import { ContactClient } from '@/components/contact-client'
 
 export default async function ContactPage() {
-  // সার্ভার থেকে সেটিংস ডাটা ফেচ
-  const siteSettings = await readSettingsData()
+  // Vercel Build Error Fix: Typecasting as any
+  const siteSettings = (await readSettingsData()) as any
   
-  // সেটিংসে ডাটা না থাকলে সেফ ফলব্যাক দেওয়া হলো
+  // সেটিংসে ডাটা না থাকলে সেফ ফলব্যাক দেওয়া হলো
   const contactData = siteSettings?.contact || {
     email: '',
     phone: '',
