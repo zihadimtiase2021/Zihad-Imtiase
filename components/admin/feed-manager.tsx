@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload,
-  BookOpen, Quote, Briefcase, ChevronDown, Loader2, Star,
-  Music, Film, GripVertical, ImagePlus,
+  BookOpen, Quote, Loader2, Star,
+  Music, Film, ImagePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
@@ -33,18 +33,12 @@ interface FeedItem {
   linkedProjectId?: string
 }
 
-interface PortfolioProject {
-  id: string
-  title: string
-  category: string
-}
-
 const EMPTY: Omit<FeedItem, 'id'> = {
-  type: 'article',
+  type: 'post',
   title: '',
   excerpt: '',
   content: '',
-  category: 'articles',
+  category: 'posts',
   image: '',
   media: [],
   author: 'Zihad Imtiase',
@@ -61,15 +55,13 @@ const EMPTY: Omit<FeedItem, 'id'> = {
 }
 
 const TYPE_OPTIONS = [
-  { value: 'article', label: 'Article', icon: BookOpen, color: '#f4a295' },
+  { value: 'post', label: 'Post', icon: BookOpen, color: '#f4a295' },
   { value: 'testimonial', label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
-  { value: 'project', label: 'Project', icon: Briefcase, color: '#9db8e8' },
 ]
 
 const CATEGORY_MAP: Record<string, string> = {
-  article: 'articles',
+  post: 'posts',
   testimonial: 'testimonials',
-  project: 'projects',
 }
 
 function mediaType(url: string): 'image' | 'video' | 'audio' {
@@ -124,20 +116,10 @@ export function FeedManager() {
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
-  const [portfolioProjects, setPortfolioProjects] = useState<PortfolioProject[]>([])
-  
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { fetchItems(); fetchPortfolioProjects() }, [])
-
-  async function fetchPortfolioProjects() {
-    try {
-      const res = await fetch('/api/portfolio')
-      const data = await res.json()
-      setPortfolioProjects(data.projects || [])
-    } catch { }
-  }
+  useEffect(() => { fetchItems() }, [])
 
   async function fetchItems() {
     try {
@@ -422,32 +404,6 @@ export function FeedManager() {
               </div>
             )}
 
-            {form.type === 'project' && (
-              <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-3">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Project Details</p>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Technologies (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={techInput}
-                    onChange={(e) => setTechInput(e.target.value)}
-                    placeholder="React, Webflow, TailwindCSS"
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-muted-foreground mb-1">Project Link</label>
-                  <input
-                    type="url"
-                    value={form.link || ''}
-                    onChange={(e) => set('link', e.target.value)}
-                    placeholder="https://example.com"
-                    className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  />
-                </div>
-              </div>
-            )}
-
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -512,29 +468,7 @@ export function FeedManager() {
               )}
             </div>
 
-            {portfolioProjects.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Link to Portfolio Project
-                  <span className="ml-1 font-normal normal-case text-muted-foreground/70">(optional)</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={form.linkedProjectId || ''}
-                    onChange={(e) => set('linkedProjectId', e.target.value || '')}
-                    className="w-full appearance-none px-3.5 py-2.5 pr-9 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand transition-colors"
-                  >
-                    <option value="">— No linked project —</option>
-                    {portfolioProjects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title} ({p.category})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
-            )}
+
 
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">

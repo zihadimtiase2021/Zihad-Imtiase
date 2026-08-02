@@ -184,7 +184,37 @@ export function PortfolioManager() {
         body: JSON.stringify(body),
       })
       if (res.ok) {
+        const saved = await res.json()
         addToast(editingId ? 'Project updated' : 'Project added')
+
+        // Auto-sync: when creating a NEW project, publish a matching feed post
+        if (!editingId) {
+          const projectData = saved.project ?? payload
+          const feedPost = {
+            type: 'project',
+            category: 'projects',
+            title: projectData.title,
+            excerpt: projectData.description,
+            content: projectData.description,
+            author: 'Zihad Imtiase',
+            image: coverImage,
+            media: form.images ?? [],
+            tech: techArray,
+            link: projectData.link ?? '',
+            featured: projectData.featured ?? false,
+            linkedProjectId: projectData.id ?? saved.project?.id ?? '',
+          }
+          try {
+            await fetch('/api/feed', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(feedPost),
+            })
+          } catch {
+            // Non-fatal: project was saved, feed sync failed silently
+          }
+        }
+
         fetchProjects()
         closeForm()
       } else {
@@ -225,7 +255,7 @@ export function PortfolioManager() {
 
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-bold text-foreground">Portfolio Projects</h2>
+          <h2 className="text-xl font-bold text-foreground">Projects</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {projects.length} {projects.length === 1 ? 'project' : 'projects'} total
           </p>

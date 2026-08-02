@@ -5,7 +5,6 @@ import { MapPin, Calendar, MessageCircle, Mail, Briefcase } from 'lucide-react'
 
 const TABS = [
   { label: 'All', value: 'all' },
-  { label: 'Articles', value: 'articles' },
   { label: 'Testimonials', value: 'testimonials' },
   { label: 'Projects', value: 'projects' },
 ]

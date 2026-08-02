@@ -13,15 +13,15 @@ const SECTIONS = [
   {
     id: 'feed',
     label: 'Feed Posts',
-    description: 'Articles, testimonials & project posts',
+    description: 'Testimonials & general posts',
     href: '/admin/feed',
     icon: Rss,
     accent: '#f4a295',
   },
   {
     id: 'portfolio',
-    label: 'Portfolio',
-    description: 'Projects with gallery & rich content',
+    label: 'Project',
+    description: 'Projects with gallery, rich content & feed sync',
     href: '/admin/portfolio',
     icon: Briefcase,
     accent: '#9db8e8',
@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     try {
       await fetch('/api/auth/logout', { method: 'POST' })
     } finally {
-      router.replace('/login')
+      router.replace('/')
     }
   }
 

@@ -6,14 +6,14 @@ import { useRouter } from 'next/navigation'
 import { Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music, MoreHorizontal, Edit, Trash2, Pin, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PostInteractions } from '@/components/post-interactions'
-import { deleteFeedItem, deletePortfolioProject, updateFeedItem } from '@/lib/data-actions'
+import { deleteFeedItem, updateFeedItem } from '@/lib/data-actions'
 import { useAdminStatus } from '@/hooks/use-admin-status'
 
-type FeedType = 'article' | 'testimonial' | 'project' | 'portfolio' | 'post' | 'general'
+type FeedType = 'testimonial' | 'project' | 'portfolio' | 'post' | 'general'
 
 interface FeedItemProps {
   id?: string
-  type: FeedType
+  type: FeedType | string
   title?: string
   body: string
   author?: string
@@ -33,12 +33,11 @@ interface FeedItemProps {
 }
 
 const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  article: { label: 'Article', icon: BookOpen, color: '#f4a295' },
   testimonial: { label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
   project: { label: 'Project', icon: Briefcase, color: '#9db8e8' },
   portfolio: { label: 'Project', icon: Briefcase, color: '#9db8e8' },
-  post: { label: 'Update', icon: BookOpen, color: '#9ca3af' },
-  general: { label: 'Update', icon: BookOpen, color: '#9ca3af' },
+  post: { label: 'Post', icon: BookOpen, color: '#f4a295' },
+  general: { label: 'Post', icon: BookOpen, color: '#f4a295' },
 }
 
 function getMediaType(url: string): 'image' | 'video' | 'audio' {
@@ -113,10 +112,7 @@ export function FeedItem({
   const handlePinToggle = async (e: React.MouseEvent) => {
     e.stopPropagation()
     setIsMenuOpen(false)
-    if (type === 'project' || type === 'portfolio') return
-    
-    // 🟢 FIXED: Type error bypassed using 'as any' since 'pinned' might not be in the original interface
-    const res = await updateFeedItem(id!, { pinned: !pinned } as any)
+    const res = await updateFeedItem(id!, { pinned: !pinned } as Parameters<typeof updateFeedItem>[1])
     if (res.success) window.location.reload()
   }
 
@@ -128,12 +124,7 @@ export function FeedItem({
 
   const confirmDelete = async () => {
     setIsDeleting(true)
-    const isPortfolio = type === 'project' || type === 'portfolio'
-    
-    const res = isPortfolio 
-      ? await deletePortfolioProject(id!) 
-      : await deleteFeedItem(id!)
-    
+    const res = await deleteFeedItem(id!)
     setIsDeleting(false)
     if (res.success) {
       window.location.reload()
@@ -175,11 +166,9 @@ export function FeedItem({
                   <button onClick={handleEdit} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors text-left">
                     <Edit size={14} /> Edit
                   </button>
-                  {type !== 'project' && type !== 'portfolio' && (
-                    <button onClick={handlePinToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors text-left">
-                      <Pin size={14} /> {pinned ? 'Unpin post' : 'Pin to top'}
-                    </button>
-                  )}
+                  <button onClick={handlePinToggle} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground hover:bg-muted transition-colors text-left">
+                    <Pin size={14} /> {pinned ? 'Unpin post' : 'Pin to top'}
+                  </button>
                   <button onClick={triggerDelete} className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors text-left">
                     <Trash2 size={14} /> Delete
                   </button>
