@@ -42,7 +42,7 @@ export function FeedCategoryClient({ items, label }: FeedCategoryClientProps) {
             <FeedItem
               key={item.id}
               id={item.id}
-              type={item.type as 'article' | 'testimonial' | 'project'}
+              type={item.type as 'testimonial' | 'project' | 'post'}
               title={item.title}
               body={item.type === 'testimonial' ? item.content : item.excerpt}
               author={item.type === 'testimonial' ? (item.clientName ?? item.author) : item.author}

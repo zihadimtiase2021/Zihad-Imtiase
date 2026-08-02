@@ -15,7 +15,7 @@ export interface FeedComment {
 
 export interface FeedItem {
   id: string
-  type: 'article' | 'testimonial' | 'project' | 'post'
+  type: 'testimonial' | 'project' | 'post'
   title: string
   excerpt: string
   content: string
