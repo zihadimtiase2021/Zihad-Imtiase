@@ -239,18 +239,16 @@ export function FeedDetailClient() {
           </div>
         )}
 
-        {/* External link */}
-        {item.link && (
-          <a
-            href={item.link}
-            target="_blank"
-            rel="noopener noreferrer"
+        {/* Internal project details link */}
+        {(linkedProject || item.linkedProjectId) && (
+          <Link
+            href={`/portfolio/${linkedProject?.id ?? item.linkedProjectId}`}
             className="inline-flex items-center gap-2 text-sm font-semibold mb-6 transition-opacity hover:opacity-80"
             style={{ color: '#f4a295' }}
           >
             <ExternalLink size={14} />
-            View live project
-          </a>
+            View full project details
+          </Link>
         )}
 
         {/* Divider */}
@@ -273,16 +271,18 @@ export function FeedDetailClient() {
       </article>
 
       {/* View Full Project Details button */}
-      {linkedProject && (
+      {linkedProject?.link && (
         <div className="px-5 py-4">
-          <Link
-            href={`/portfolio/${linkedProject.id}`}
+          <a
+            href={linkedProject.link}
+            target="_blank"
+            rel="noopener noreferrer"
             className="w-full py-3 rounded-full text-sm font-bold transition-all hover:opacity-90 active:scale-95 flex items-center justify-center gap-2"
             style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
           >
-            View Full Project Details
-            <span aria-hidden>→</span>
-          </Link>
+            <ExternalLink size={14} />
+            View live project
+          </a>
         </div>
       )}
 
