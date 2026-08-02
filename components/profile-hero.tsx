@@ -122,7 +122,7 @@ export function ProfileHero({
                   muted
                   loop
                   playsInline
-                  className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm"
+                  className="w-20 w-20 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm"
                 />
               ) : (
                 <img

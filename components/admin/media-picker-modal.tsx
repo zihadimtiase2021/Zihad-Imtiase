@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Check, Loader2, Image as ImageIcon, Film, Music, Library } from 'lucide-react'
+import { X, Check, Loader2, Image as ImageIcon, Film, Music, Library, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 
 interface MediaResource {
   asset_id: string
@@ -32,6 +33,9 @@ export function MediaPickerModal({ isOpen, onClose, onSelect, multiple = false }
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [mounted, setMounted] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  
+  const { addToast } = useToast()
 
   useEffect(() => {
     setMounted(true)
@@ -50,9 +54,47 @@ export function MediaPickerModal({ isOpen, onClose, onSelect, multiple = false }
         setResources(data.resources)
       }
     } catch {
-      // ignore
+      addToast('Failed to load media library', false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // ── Handle Media Deletion ──
+  async function handleDelete(e: React.MouseEvent, public_id: string, secure_url: string, resource_type: string) {
+    e.stopPropagation() // কার্ড সিলেক্ট হওয়া আটকাতে
+    
+    if (!confirm('Are you sure you want to delete this media? This action cannot be undone.')) return
+    
+    setDeletingId(public_id)
+    try {
+      const res = await fetch('/api/media', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ public_id, resource_type })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        // UI থেকে রিমুভ করা
+        setResources(prev => prev.filter(r => r.public_id !== public_id))
+        
+        // যদি আইটেমটি সিলেক্টেড থাকে, তবে সিলেকশন থেকেও রিমুভ করা
+        if (selected.has(secure_url)) {
+          const next = new Set(selected)
+          next.delete(secure_url)
+          setSelected(next)
+        }
+        
+        addToast('Media deleted successfully')
+      } else {
+        addToast(data.error || 'Failed to delete media', false)
+      }
+    } catch (error) {
+      addToast('Network error while deleting', false)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -86,7 +128,7 @@ export function MediaPickerModal({ isOpen, onClose, onSelect, multiple = false }
             </div>
             <div>
               <h2 className="font-bold text-foreground leading-none">Site Media Library</h2>
-              <p className="text-[11px] text-muted-foreground mt-1">Select from existing uploads</p>
+              <p className="text-[11px] text-muted-foreground mt-1">Select or manage existing uploads</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-muted text-muted-foreground transition-colors">
@@ -110,13 +152,16 @@ export function MediaPickerModal({ isOpen, onClose, onSelect, multiple = false }
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {resources.map((res) => {
                 const isSelected = selected.has(res.secure_url)
+                const isDeleting = deletingId === res.public_id
+                
                 return (
                   <div
                     key={res.asset_id}
-                    onClick={() => toggleSelection(res.secure_url)}
+                    onClick={() => !isDeleting && toggleSelection(res.secure_url)}
                     className={cn(
                       'group relative aspect-square rounded-xl overflow-hidden border-2 cursor-pointer transition-all bg-muted/30',
-                      isSelected ? 'border-[#f4a295] shadow-md' : 'border-border hover:border-border/80'
+                      isSelected ? 'border-[#f4a295] shadow-md' : 'border-border hover:border-border/80',
+                      isDeleting && 'opacity-50 pointer-events-none'
                     )}
                   >
                     {res.resource_type === 'image' ? (
@@ -127,6 +172,16 @@ export function MediaPickerModal({ isOpen, onClose, onSelect, multiple = false }
                         <span className="text-[10px] mt-2 font-bold uppercase tracking-wider">{res.format}</span>
                       </div>
                     )}
+                    
+                    {/* Delete Button (Visible on Hover) */}
+                    <button
+                      onClick={(e) => handleDelete(e, res.public_id, res.secure_url, res.resource_type)}
+                      disabled={isDeleting}
+                      className="absolute top-2 left-2 w-7 h-7 rounded-lg bg-black/60 text-white flex items-center justify-center z-20"
+                      title="Delete media"
+                    >
+                      {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
                     
                     {/* Checkbox Overlay */}
                     <div className={cn(

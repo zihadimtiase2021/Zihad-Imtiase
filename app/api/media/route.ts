@@ -28,3 +28,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch media from Cloudinary' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  if (!(await isAuthenticated(request))) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  try {
+    const { public_id, resource_type } = await request.json()
+
+    if (!public_id) {
+      return NextResponse.json({ success: false, error: 'Public ID is required' }, { status: 400 })
+    }
+
+    // Cloudinary থেকে ফাইল ডিলিট করা
+    await cloudinary.uploader.destroy(public_id, {
+      resource_type: resource_type || 'image',
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('[media DELETE error]', error)
+    return NextResponse.json({ success: false, error: 'Failed to delete media from Cloudinary' }, { status: 500 })
+  }
+}
