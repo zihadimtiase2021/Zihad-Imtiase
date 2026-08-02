@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ImageCropperModal } from './image-cropper-modal'
+import { MediaPicker } from '@/components/media-picker'
 
 // --- Interfaces ---
 interface TimelineItem { year: string; title: string; place: string; desc: string }
@@ -19,7 +20,7 @@ interface SiteSettings {
   hero: {
     coverMedia: string; profileMedia: string; name: string; title: string; bio: string;
     tags: string[]; location: string; joinDate: string; stats: { value: string; label: string }[];
-    hireMeLink: string; // <-- New Field
+    hireMeLink: string; 
   }
   about: {
     media: string[]; introText: string; timeline: TimelineItem[]; stack: StackItem[]; values: ValueItem[];
@@ -27,7 +28,7 @@ interface SiteSettings {
   contact: {
     email: string; phone: string; address: string; shortText: string; socials: SocialItem[];
   }
-  meta: { // <-- New Field
+  meta: { 
     title: string; description: string; favicon: string;
   }
 }
@@ -311,27 +312,42 @@ export function SiteSettingsManager() {
                   </div>
                 </div>
 
-                {/* Favicon Upload */}
-                <div className="space-y-1.5">
-                  <label className="text-xs text-muted-foreground uppercase">Website Favicon</label>
-                  <div className="w-full aspect-square max-w-[120px] mx-auto md:mx-0 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center relative overflow-hidden group/fav bg-muted">
-                    {settings.meta.favicon ? (
-                      <>
-                        <img src={settings.meta.favicon} className="w-full h-full object-cover" alt="Favicon"/>
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/fav:opacity-100 flex items-center justify-center gap-2 transition-opacity">
-                          <button onClick={() => document.getElementById('fav-up')?.click()} className="text-white hover:text-[#f4a295]"><Upload size={16}/></button>
-                          <button onClick={() => deleteMedia('meta.favicon')} className="text-white hover:text-red-500"><Trash2 size={16}/></button>
-                        </div>
-                      </>
-                    ) : (
-                      <button onClick={() => document.getElementById('fav-up')?.click()} className="text-muted-foreground flex flex-col items-center gap-2 hover:text-[#f4a295]">
-                        <ImageIcon size={24} />
-                        <span className="text-xs">Upload</span>
-                      </button>
-                    )}
+                {/* Favicon Upload via MediaPicker */}
+                <div className="space-y-1.5 flex flex-col">
+                  <label className="text-xs text-muted-foreground uppercase mb-1">Website Favicon</label>
+                  
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-muted border border-border overflow-hidden flex items-center justify-center shrink-0">
+                      {settings.meta.favicon ? (
+                        <img src={settings.meta.favicon} alt="Favicon" className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No Icon</span>
+                      )}
+                    </div>
+
+                    <div className="flex-1 flex flex-col gap-2">
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="text" 
+                          value={settings.meta.favicon || ''} 
+                          onChange={(e) => setSettings({ ...settings, meta: { ...settings.meta, favicon: e.target.value }})}
+                          placeholder="Favicon URL..."
+                          className="w-full bg-muted/50 border border-border px-3 py-2 rounded-xl text-sm outline-none focus:border-[#f4a295]"
+                        />
+                        
+                        <MediaPicker 
+                          onSelect={(media) => {
+                            if (media.length > 0) {
+                              let next = { ...settings }
+                              next.meta.favicon = media[0].url
+                              setSettings(next)
+                            }
+                          }} 
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Recommended: 512x512px (PNG/SVG).</p>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center md:text-left mt-2">1:1 Ratio. Shows in browser tabs.</p>
-                  <input id="fav-up" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileIntent(e.target.files[0], 'meta.favicon', 1)} />
                 </div>
               </div>
             </div>
@@ -340,7 +356,6 @@ export function SiteSettingsManager() {
 
         {/* 2. ABOUT & PORTFOLIO TAB */}
         {activeTab === 'about' && (
-           // ... (About tab remains same as previous code)
            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
            <div>
              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><ImageIcon size={16} className="text-[#9db8e8]"/> About Gallery (5:7 Ratio)</h3>
@@ -435,7 +450,6 @@ export function SiteSettingsManager() {
 
         {/* 3. CONTACT & SOCIALS TAB */}
         {activeTab === 'contact' && (
-           // ... (Contact tab remains same as previous code)
            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
            <div>
              <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2"><Phone size={16} className="text-[#a8d5c2]"/> Direct Contact Info</h3>
