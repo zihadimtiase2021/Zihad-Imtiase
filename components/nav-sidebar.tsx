@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '@/components/theme-provider'
 import { cn } from '@/lib/utils'
-import { useEffect, useState } from 'react'
+import { useAdminStatus } from '@/hooks/use-admin-status'
 
 const PUBLIC_NAV = [
   { label: 'Home', href: '/', icon: Home },
@@ -23,34 +23,12 @@ const PUBLIC_NAV = [
   { label: 'Contact', href: '/contact', icon: Mail },
 ]
 
-function readAdminHint(): boolean {
-  if (typeof document === 'undefined') return false
-  return document.cookie.split(';').some((c) => c.trim().startsWith('admin_hint=1'))
-}
-
 export function NavSidebar() {
   const pathname = usePathname()
   const { theme, toggle } = useTheme()
-  
-  // হাইড্রেশন এরর সমাধানের জন্য isMounted স্টেট
-  const [isMounted, setIsMounted] = useState(false)
-  
-  // Initialise synchronously from the hint cookie — no flash on navigation
-  const [isAdmin, setIsAdmin] = useState<boolean>(() => readAdminHint())
+  const isAdmin = useAdminStatus()
 
-  useEffect(() => {
-    setIsMounted(true)
-
-    // One-time integrity check against the real session on mount only
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then((d) => setIsAdmin(d.authenticated === true))
-      .catch(() => setIsAdmin(readAdminHint()))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // intentionally no pathname dep — hint cookie handles route changes
-
-  // isMounted এবং isAdmin চেক যোগ করা হয়েছে যেন সার্ভার এবং ক্লায়েন্টের প্রথম রেন্ডারিং ১০০% মিলে যায়
-  const navItems = isMounted && isAdmin
+  const navItems = isAdmin
     ? [...PUBLIC_NAV, { label: 'Admin', href: '/admin', icon: Database }]
     : PUBLIC_NAV
 

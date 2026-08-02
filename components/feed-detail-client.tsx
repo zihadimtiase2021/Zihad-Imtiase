@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Heart, MessageCircle, Share2,
+  ArrowLeft, Share2,
   BookOpen, Quote, Briefcase, ExternalLink, TrendingUp, Music,
 } from 'lucide-react'
 import { PageShell } from '@/components/page-shell'
+import { PostInteractions } from '@/components/post-interactions'
 
 interface FeedItemData {
   id: string
@@ -30,6 +31,7 @@ interface FeedItemData {
   link?: string
   featured?: boolean
   linkedProjectId?: string
+  pinned?: boolean
 }
 
 interface Project {
@@ -55,8 +57,6 @@ export function FeedDetailClient() {
   const router = useRouter()
   const [item, setItem] = useState<FeedItemData | null>(null)
   const [linkedProject, setLinkedProject] = useState<Project | null>(null)
-  const [liked, setLiked] = useState(false)
-  const [likes, setLikes] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -66,7 +66,6 @@ export function FeedDetailClient() {
         if (!res.ok) { router.push('/'); return }
         const data: FeedItemData = await res.json()
         setItem(data)
-        setLikes(data.likes)
 
         // fetch linked project if present
         if (data.linkedProjectId) {
@@ -242,33 +241,22 @@ export function FeedDetailClient() {
         )}
 
         {/* Divider */}
-        <div className="border-t border-border pt-4 mb-4">
+        <div className="border-t border-border pt-4 mb-1 flex items-center justify-between">
           <p className="text-xs text-muted-foreground">{new Date(item.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-        </div>
-
-        {/* Action row */}
-        <div className="flex items-center gap-8">
           <button
-            onClick={() => { setLiked((p) => !p); setLikes((p) => liked ? p - 1 : p + 1) }}
-            className="flex items-center gap-2 text-sm transition-colors"
-            style={{ color: liked ? '#f87171' : 'var(--muted-foreground)' }}
-            aria-label="Like"
-          >
-            <Heart size={18} fill={liked ? '#f87171' : 'none'} stroke={liked ? '#f87171' : 'currentColor'} />
-            <span className="font-medium">{likes}</span>
-          </button>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MessageCircle size={18} />
-            <span className="font-medium">{item.replies}</span>
-          </div>
-          <button
-            className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
             aria-label="Share"
             onClick={() => navigator.share?.({ title: item.title, url: window.location.href })}
           >
-            <Share2 size={18} />
+            <Share2 size={16} />
           </button>
         </div>
+
+        {/* Interactions — likes + persistent comments */}
+        <PostInteractions
+          postId={item.id}
+          initialLikes={item.likes}
+        />
       </article>
 
       {/* Linked project card */}

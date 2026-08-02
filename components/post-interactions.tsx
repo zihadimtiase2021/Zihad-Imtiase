@@ -30,7 +30,8 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
   const [isLiked, setIsLiked] = useState(false)
   const [comments, setComments] = useState<Comment[]>(initialComments)
   const [commentsLoaded, setCommentsLoaded] = useState(false)
-  
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+
   const [isCommentOpen, setIsCommentOpen] = useState(false)
   const [isIdentityModalOpen, setIsIdentityModalOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'like' | 'comment' | null>(null)
@@ -48,9 +49,10 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
     if (saved) setIdentity(JSON.parse(saved))
   }, [])
 
-  // Fetch persisted comments from DB when comment section is opened
+  // Fetch persisted comments from DB eagerly on mount so counts & content are always fresh
   useEffect(() => {
-    if (!isCommentOpen || commentsLoaded) return
+    if (commentsLoaded) return
+    setIsLoadingComments(true)
     fetch(`/api/interact?postId=${encodeURIComponent(postId)}`)
       .then((res) => res.json())
       .then((data) => {
@@ -60,7 +62,9 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
         setCommentsLoaded(true)
       })
       .catch(() => setCommentsLoaded(true))
-  }, [isCommentOpen, commentsLoaded, postId])
+      .finally(() => setIsLoadingComments(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId]) // re-fetch if postId changes (navigating between posts)
 
   const handleLikeClick = () => {
     if (!identity) {
@@ -174,7 +178,7 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
           onClick={() => setIsCommentOpen(!isCommentOpen)}
           className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
-          <MessageCircle size={18} />
+          <MessageCircle size={18} className={cn(isLoadingComments && 'animate-pulse')} />
           {comments.length > 0 && <span>{comments.length}</span>}
         </button>
       </div>
