@@ -6,12 +6,11 @@ if (!rawUri) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local')
 }
 
-// যেকোনো কোটেশন চিহ্ন (", '), স্পেস বা লাইন-ব্রেক অটোমেটিক রিমুভ করার জন্য
 const uri = rawUri.replace(/["']/g, '').trim()
 
 if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
   throw new Error(
-    `Invalid MONGODB_URI format. Your URI starts with: "${uri.substring(0, 15)}...". It must start with "mongodb://" or "mongodb+srv://"`
+    `Invalid MONGODB_URI format. URI must start with "mongodb://" or "mongodb+srv://"`
   )
 }
 
@@ -21,29 +20,30 @@ const options = {
     strict: true,
     deprecationErrors: true,
   },
+  maxPoolSize: 10,
+  minPoolSize: 2,
+  connectTimeoutMS: 10_000,
+  socketTimeoutMS: 45_000,
 }
 
-let client: MongoClient
-let clientPromise: Promise<MongoClient>
-
-if (process.env.NODE_ENV === 'development') {
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>
-  }
-
-  if (!globalWithMongo._mongoClientPromise) {
-    client = new MongoClient(uri, options)
-    globalWithMongo._mongoClientPromise = client.connect()
-  }
-  clientPromise = globalWithMongo._mongoClientPromise
-} else {
-  client = new MongoClient(uri, options)
-  clientPromise = client.connect()
+// Global singleton — persists across hot reloads in dev AND across invocations
+// in serverless (module cache is reused within the same container).
+declare global {
+  // eslint-disable-next-line no-var
+  var _mongoClientPromise: Promise<MongoClient> | undefined
 }
 
-export async function getDb() {
+function createClient(): Promise<MongoClient> {
+  const client = new MongoClient(uri, options)
+  return client.connect()
+}
+
+const clientPromise: Promise<MongoClient> =
+  globalThis._mongoClientPromise ?? (globalThis._mongoClientPromise = createClient())
+
+export async function getDb(dbName = 'zihad_portfolio') {
   const client = await clientPromise
-  return client.db('zihad_portfolio')
+  return client.db(dbName)
 }
 
 export default clientPromise

@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { makeSessionToken, safeEqual, SESSION_COOKIE } from '@/lib/auth'
 
-const SESSION_COOKIE = 'admin_session'
 const LOGIN_PAGE = '/login'
-
-async function sha256(text: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(text)
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer)
-  const hashArray = Array.from(new Uint8Array(hashBuffer))
-  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-async function makeSessionToken(username: string, password: string): Promise<string> {
-  // Must match the formula in lib/auth.ts and app/api/auth/login/route.ts
-  const secret = password
-  return sha256(`${username}:${password}:${secret}:nextzd-session`)
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Only protect /admin and its sub-paths
   if (!pathname.startsWith('/admin')) {
     return NextResponse.next()
   }
@@ -35,13 +21,14 @@ export async function middleware(request: NextRequest) {
   const envUsername = process.env.ADMIN_USERNAME ?? ''
   const envPassword = process.env.ADMIN_PASSWORD ?? ''
 
+  // If credentials are not yet configured, allow through to avoid lockout
   if (!envUsername || !envPassword) {
     return NextResponse.next()
   }
 
   try {
     const expectedToken = await makeSessionToken(envUsername, envPassword)
-    if (sessionCookie.value !== expectedToken) {
+    if (!safeEqual(sessionCookie.value, expectedToken)) {
       const loginUrl = new URL(LOGIN_PAGE, request.url)
       loginUrl.searchParams.set('from', pathname)
       return NextResponse.redirect(loginUrl)

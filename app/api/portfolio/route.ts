@@ -7,11 +7,11 @@ import {
 } from '@/lib/data-actions'
 import { isAuthenticated } from '@/lib/auth'
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const data = await getPortfolioData()
     return NextResponse.json(data)
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch portfolio' }, { status: 500 })
   }
 }
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
     return NextResponse.json(result, { status: 201 })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to add portfolio project' }, { status: 500 })
   }
 }
@@ -43,7 +43,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
     return NextResponse.json(result)
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to update portfolio project' }, { status: 500 })
   }
 }
@@ -59,7 +59,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 })
     }
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to delete portfolio project' }, { status: 500 })
   }
 }

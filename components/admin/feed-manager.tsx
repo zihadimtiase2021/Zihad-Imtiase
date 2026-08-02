@@ -4,10 +4,12 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload, Image, FileVideo,
   BookOpen, Quote, Briefcase, ChevronDown, Loader2, Star,
-  Music, Film, GripVertical, ImagePlus, Settings2
+  Music, Film, GripVertical, ImagePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
+import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
+import { useToast } from '@/hooks/use-toast'
 
 interface FeedItem {
   id: string
@@ -69,8 +71,6 @@ const CATEGORY_MAP: Record<string, string> = {
   testimonial: 'testimonials',
   project: 'projects',
 }
-
-type Toast = { id: number; msg: string; ok: boolean }
 
 function mediaType(url: string): 'image' | 'video' | 'audio' {
   if (/\.(mp4|webm|mov)$/i.test(url)) return 'video'
