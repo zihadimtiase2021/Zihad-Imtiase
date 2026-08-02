@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload, Image, ExternalLink,
-  Code, Loader2, Star, TrendingUp, AlignLeft, GripVertical,
+  Code, Loader2, Star, TrendingUp, AlignLeft, GripVertical, ImagePlus
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MediaPickerModal } from './media-picker-modal'
 
 interface ContentBlock {
   id: string
@@ -45,7 +46,6 @@ const EMPTY: Omit<Project, 'id'> = {
 }
 
 const CATEGORIES = ['development', 'webflow', 'design', 'marketing']
-
 type Toast = { id: number; msg: string; ok: boolean }
 
 function newBlockId() {
@@ -59,14 +59,14 @@ export function PortfolioManager() {
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const [galleryUploading, setGalleryUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
-  const fileRef = useRef<HTMLInputElement>(null)
+  
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
@@ -120,26 +120,6 @@ export function PortfolioManager() {
     setEditingId(null)
   }
 
-  async function handleUpload(file: File) {
-    setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    try {
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      const data = await res.json()
-      if (data.success) {
-        set('image', data.url)
-        addToast('Cover image uploaded')
-      } else {
-        addToast('Upload failed', false)
-      }
-    } catch {
-      addToast('Upload failed', false)
-    } finally {
-      setUploading(false)
-    }
-  }
-
   async function handleGalleryUpload(files: FileList) {
     setGalleryUploading(true)
     const uploaded: string[] = []
@@ -157,16 +137,22 @@ export function PortfolioManager() {
     }
     if (uploaded.length > 0) {
       setForm((f) => ({ ...f, images: [...(f.images ?? []), ...uploaded] }))
-      addToast(`${uploaded.length} image${uploaded.length > 1 ? 's' : ''} added`)
+      addToast(`${uploaded.length} image(s) added`)
     }
     setGalleryUploading(false)
+  }
+
+  function handleSelectExisting(urls: string[]) {
+    if (urls.length > 0) {
+      setForm((f) => ({ ...f, images: [...(f.images ?? []), ...urls] }))
+      addToast(`${urls.length} media attached`)
+    }
   }
 
   function removeGalleryImage(index: number) {
     setForm((f) => ({ ...f, images: (f.images ?? []).filter((_, i) => i !== index) }))
   }
 
-  // Content block helpers
   function addBlock(type: ContentBlock['type']) {
     const block: ContentBlock = { id: newBlockId(), type }
     setForm((f) => ({ ...f, content: [...(f.content ?? []), block] }))
@@ -188,7 +174,6 @@ export function PortfolioManager() {
     setSaving(true)
     const techArray = techInput.split(',').map((t) => t.trim()).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
-    // sync cover image: first gallery image if present, otherwise existing cover
     const coverImage = form.images?.[0] ?? form.image ?? ''
     const payload = { ...form, tech: techArray, results, image: coverImage }
 
@@ -238,7 +223,6 @@ export function PortfolioManager() {
 
   return (
     <div className="relative">
-      {/* Toast stack */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <div
@@ -253,7 +237,6 @@ export function PortfolioManager() {
         ))}
       </div>
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-foreground">Portfolio Projects</h2>
@@ -271,31 +254,19 @@ export function PortfolioManager() {
         </button>
       </div>
 
-      {/* Form panel */}
       {showForm && (
         <div ref={formRef} className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
-          <div
-            className="flex items-center justify-between px-5 py-4 border-b border-border"
-            style={{ background: '#f4a29510' }}
-          >
-            <h3 className="font-semibold text-foreground text-sm">
-              {editingId ? 'Edit Project' : 'Add New Project'}
-            </h3>
-            <button
-              onClick={closeForm}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border" style={{ background: '#f4a29510' }}>
+            <h3 className="font-semibold text-foreground text-sm">{editingId ? 'Edit Project' : 'Add New Project'}</h3>
+            <button onClick={closeForm} className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               <X size={15} />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
-            {/* Category + Featured */}
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Category
-                </label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
                 <div className="relative">
                   <select
                     value={form.category}
@@ -310,9 +281,7 @@ export function PortfolioManager() {
                 </div>
               </div>
               <div className="flex flex-col justify-end pb-0.5">
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Featured
-                </label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
                 <button
                   type="button"
                   onClick={() => set('featured', !form.featured)}
@@ -328,47 +297,19 @@ export function PortfolioManager() {
               </div>
             </div>
 
-            {/* Title */}
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Project Title <span className="text-destructive">*</span>
-              </label>
-              <input
-                type="text"
-                value={form.title}
-                onChange={(e) => set('title', e.target.value)}
-                placeholder="e.g. SaaS Landing Page for TechStart"
-                required
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-              />
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Project Title <span className="text-destructive">*</span></label>
+              <input type="text" value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="e.g. SaaS Landing Page for TechStart" required className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
             </div>
 
-            {/* Description */}
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Description
-              </label>
-              <textarea
-                value={form.description}
-                onChange={(e) => set('description', e.target.value)}
-                placeholder="What did you build and what problem did it solve?"
-                rows={3}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"
-              />
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Description</label>
+              <textarea value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="What did you build and what problem did it solve?" rows={3} className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none" />
             </div>
 
-            {/* Technologies */}
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span>
-              </label>
-              <input
-                type="text"
-                value={techInput}
-                onChange={(e) => setTechInput(e.target.value)}
-                placeholder="React, Webflow, TailwindCSS, Stripe"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-              />
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span></label>
+              <input type="text" value={techInput} onChange={(e) => setTechInput(e.target.value)} placeholder="React, Webflow, TailwindCSS, Stripe" className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
               {techInput.trim() && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {techInput.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
@@ -378,94 +319,51 @@ export function PortfolioManager() {
               )}
             </div>
 
-            {/* Key result */}
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Key Result <span className="text-xs font-normal normal-case text-muted-foreground">(shown as metric badge)</span>
-              </label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Key Result <span className="text-xs font-normal normal-case text-muted-foreground">(shown as metric badge)</span></label>
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={resultKey}
-                  onChange={(e) => setResultKey(e.target.value)}
-                  placeholder="Conversions"
-                  className="w-2/5 px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                />
-                <input
-                  type="text"
-                  value={resultVal}
-                  onChange={(e) => setResultVal(e.target.value)}
-                  placeholder="+40% increase"
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                />
+                <input type="text" value={resultKey} onChange={(e) => setResultKey(e.target.value)} placeholder="Conversions" className="w-2/5 px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                <input type="text" value={resultVal} onChange={(e) => setResultVal(e.target.value)} placeholder="+40% increase" className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
               </div>
             </div>
 
-            {/* Links */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Live URL
-                </label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Live URL</label>
                 <div className="relative">
                   <ExternalLink size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="url"
-                    value={form.link || ''}
-                    onChange={(e) => set('link', e.target.value)}
-                    placeholder="https://example.com"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  />
+                  <input type="url" value={form.link || ''} onChange={(e) => set('link', e.target.value)} placeholder="https://example.com" className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  GitHub URL
-                </label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">GitHub URL</label>
                 <div className="relative">
                   <Code size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="url"
-                    value={form.github || ''}
-                    onChange={(e) => set('github', e.target.value)}
-                    placeholder="https://github.com/..."
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                  />
+                  <input type="url" value={form.github || ''} onChange={(e) => set('github', e.target.value)} placeholder="https://github.com/..." className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
                 </div>
               </div>
             </div>
 
-            {/* ── Image gallery ── */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Project Images
-                  <span className="ml-1 font-normal normal-case text-muted-foreground/70">
-                    — first image used as cover
-                  </span>
+                  <span className="ml-1 font-normal normal-case text-muted-foreground/70">— first image used as cover</span>
                 </label>
                 {galleryCount > 0 && (
                   <span className="text-[11px] text-muted-foreground">{galleryCount} image{galleryCount !== 1 ? 's' : ''}</span>
                 )}
               </div>
 
-              {/* Gallery grid */}
               {galleryCount > 0 && (
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   {(form.images ?? []).map((url, i) => (
                     <div key={url + i} className="relative group/img rounded-xl overflow-hidden bg-muted border border-border">
                       <img src={url} alt="" className="w-full h-20 object-cover" />
                       {i === 0 && (
-                        <div className="absolute top-1 left-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/70 text-white">
-                          Cover
-                        </div>
+                        <div className="absolute top-1 left-1 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-black/70 text-white">Cover</div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => removeGalleryImage(i)}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity"
-                        aria-label="Remove image"
-                      >
+                      <button type="button" onClick={() => removeGalleryImage(i)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
                         <X size={10} />
                       </button>
                     </div>
@@ -473,46 +371,42 @@ export function PortfolioManager() {
                 </div>
               )}
 
-              <div
-                className={cn(
-                  'border-2 border-dashed rounded-xl transition-colors cursor-pointer',
-                  galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30'
-                )}
-                onClick={() => !galleryUploading && galleryRef.current?.click()}
-              >
-                <div className="flex flex-col items-center gap-2 py-5 text-muted-foreground">
-                  {galleryUploading ? (
-                    <Loader2 size={22} className="animate-spin" style={{ color: '#f4a295' }} />
-                  ) : (
-                    <>
-                      <Image size={20} />
-                      <span className="text-xs">
-                        {galleryCount === 0 ? 'Upload project images' : 'Add more images'}
-                      </span>
-                    </>
+              <div className="grid grid-cols-2 gap-2">
+                <div
+                  className={cn(
+                    'border-2 border-dashed rounded-xl transition-colors cursor-pointer',
+                    galleryUploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30'
                   )}
+                  onClick={() => !galleryUploading && galleryRef.current?.click()}
+                >
+                  <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                    {galleryUploading ? (
+                      <Loader2 size={18} className="animate-spin text-[#f4a295]" />
+                    ) : (
+                      <>
+                        <Upload size={18} />
+                        <span className="text-xs">Upload New</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <input
-                  ref={galleryRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => e.target.files && handleGalleryUpload(e.target.files)}
-                />
+
+                <div
+                  className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
+                  onClick={() => setPickerOpen(true)}
+                >
+                  <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                    <ImagePlus size={18} />
+                    <span className="text-xs">Choose Existing</span>
+                  </div>
+                </div>
+
+                <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => e.target.files && handleGalleryUpload(e.target.files)} />
               </div>
             </div>
 
-            {/* ── Rich content blocks ── */}
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Detailed Content
-                <span className="ml-1 font-normal normal-case text-muted-foreground/70">
-                  — shown on the project detail page
-                </span>
-              </label>
-
-              {/* Existing blocks */}
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Detailed Content</label>
               {(form.content ?? []).length > 0 && (
                 <div className="space-y-2 mb-2">
                   {(form.content ?? []).map((block) => (
@@ -521,136 +415,48 @@ export function PortfolioManager() {
                         <GripVertical size={14} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        {block.type === 'heading' && (
-                          <input
-                            type="text"
-                            value={block.text ?? ''}
-                            onChange={(e) => updateBlock(block.id, { text: e.target.value })}
-                            placeholder="Section heading..."
-                            className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                          />
-                        )}
-                        {block.type === 'paragraph' && (
-                          <textarea
-                            value={block.text ?? ''}
-                            onChange={(e) => updateBlock(block.id, { text: e.target.value })}
-                            placeholder="Write a paragraph..."
-                            rows={3}
-                            className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none"
-                          />
-                        )}
+                        {block.type === 'heading' && <input type="text" value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Section heading..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />}
+                        {block.type === 'paragraph' && <textarea value={block.text ?? ''} onChange={(e) => updateBlock(block.id, { text: e.target.value })} placeholder="Write a paragraph..." rows={3} className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand resize-none" />}
                         {block.type === 'image' && (
                           <div className="space-y-1.5">
-                            <input
-                              type="url"
-                              value={block.url ?? ''}
-                              onChange={(e) => updateBlock(block.id, { url: e.target.value })}
-                              placeholder="Image URL (from gallery above)..."
-                              className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                            />
-                            <input
-                              type="text"
-                              value={block.caption ?? ''}
-                              onChange={(e) => updateBlock(block.id, { caption: e.target.value })}
-                              placeholder="Caption (optional)..."
-                              className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
-                            />
-                            {block.url && (
-                              <div className="rounded-xl overflow-hidden bg-muted border border-border">
-                                <img src={block.url} alt={block.caption ?? ''} className="w-full max-h-32 object-cover" />
-                              </div>
-                            )}
+                            <input type="url" value={block.url ?? ''} onChange={(e) => updateBlock(block.id, { url: e.target.value })} placeholder="Image URL (from gallery above)..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                            <input type="text" value={block.caption ?? ''} onChange={(e) => updateBlock(block.id, { caption: e.target.value })} placeholder="Caption (optional)..." className="w-full px-3 py-2 rounded-xl border border-border bg-background text-foreground text-xs focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand" />
+                            {block.url && <div className="rounded-xl overflow-hidden bg-muted border border-border"><img src={block.url} alt={block.caption ?? ''} className="w-full max-h-32 object-cover" /></div>}
                           </div>
                         )}
-                        {block.type === 'divider' && (
-                          <div className="flex items-center gap-2 py-2 text-muted-foreground">
-                            <div className="flex-1 h-px bg-border" />
-                            <span className="text-[10px] uppercase tracking-widest">divider</span>
-                            <div className="flex-1 h-px bg-border" />
-                          </div>
-                        )}
+                        {block.type === 'divider' && <div className="flex items-center gap-2 py-2 text-muted-foreground"><div className="flex-1 h-px bg-border" /><span className="text-[10px] uppercase tracking-widest">divider</span><div className="flex-1 h-px bg-border" /></div>}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeBlock(block.id)}
-                        className="mt-2 w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover/block:opacity-100"
-                        aria-label="Remove block"
-                      >
-                        <X size={12} />
-                      </button>
+                      <button type="button" onClick={() => removeBlock(block.id)} className="mt-2 w-6 h-6 rounded-full flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover/block:opacity-100"><X size={12} /></button>
                     </div>
                   ))}
                 </div>
               )}
-
-              {/* Add block buttons */}
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => addBlock('heading')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <span className="font-bold">H</span> Heading
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addBlock('paragraph')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <AlignLeft size={12} /> Paragraph
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addBlock('image')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <Image size={12} /> Image
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addBlock('divider')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  — Divider
-                </button>
+                <button type="button" onClick={() => addBlock('heading')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><span className="font-bold">H</span> Heading</button>
+                <button type="button" onClick={() => addBlock('paragraph')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><AlignLeft size={12} /> Paragraph</button>
+                <button type="button" onClick={() => addBlock('image')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Image size={12} /> Image</button>
+                <button type="button" onClick={() => addBlock('divider')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">— Divider</button>
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 pt-1">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
-                style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-              >
+              <button type="submit" disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-90 active:scale-95 disabled:opacity-60" style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}>
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {editingId ? 'Save changes' : 'Add project'}
               </button>
-              <button
-                type="button"
-                onClick={closeForm}
-                className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                Cancel
-              </button>
+              <button type="button" onClick={closeForm} className="px-5 py-2.5 rounded-xl text-sm font-medium border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancel</button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Projects list */}
       {loading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="h-16 rounded-xl bg-muted animate-pulse" />
-          ))}
+          {[1, 2, 3].map((n) => <div key={n} className="h-16 rounded-xl bg-muted animate-pulse" />)}
         </div>
       ) : projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center gap-3 rounded-2xl border border-dashed border-border">
-          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
-            <Plus size={20} className="text-muted-foreground" />
-          </div>
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center"><Plus size={20} className="text-muted-foreground" /></div>
           <p className="text-sm text-muted-foreground">No projects yet. Add your first one!</p>
         </div>
       ) : (
@@ -659,74 +465,22 @@ export function PortfolioManager() {
             const isDeleting = deleteConfirm === project.id
             const coverImage = project.images?.[0] ?? project.image
             return (
-              <div
-                key={project.id}
-                className={cn(
-                  'group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all',
-                  isDeleting
-                    ? 'border-destructive/40 bg-destructive/5'
-                    : 'border-border bg-card hover:border-border/80 hover:bg-muted/30'
-                )}
-              >
-                {coverImage ? (
-                  <img
-                    src={coverImage}
-                    alt={project.title}
-                    className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border"
-                  />
-                ) : (
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border border-border"
-                    style={{ backgroundColor: '#f4a29515' }}
-                  >
-                    <TrendingUp size={16} style={{ color: '#f4a295' }} />
-                  </div>
-                )}
+              <div key={project.id} className={cn('group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all', isDeleting ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card hover:border-border/80 hover:bg-muted/30')}>
+                {coverImage ? <img src={coverImage} alt={project.title} className="w-10 h-10 rounded-lg object-cover shrink-0 border border-border" /> : <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border border-border" style={{ backgroundColor: '#f4a29515' }}><TrendingUp size={16} style={{ color: '#f4a295' }} /></div>}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-foreground truncate">{project.title}</p>
-                    {project.featured && (
-                      <Star size={11} fill="#f4a295" style={{ color: '#f4a295' }} className="shrink-0" />
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {project.category}
-                    {project.tech?.length > 0 && ` · ${project.tech.slice(0, 2).join(', ')}`}
-                    {(project.images?.length ?? 0) > 0 && ` · ${project.images!.length} image${project.images!.length !== 1 ? 's' : ''}`}
-                  </p>
+                  <div className="flex items-center gap-2"><p className="text-sm font-semibold text-foreground truncate">{project.title}</p>{project.featured && <Star size={11} fill="#f4a295" style={{ color: '#f4a295' }} className="shrink-0" />}</div>
+                  <p className="text-xs text-muted-foreground capitalize">{project.category}{project.tech?.length > 0 && ` · ${project.tech.slice(0, 2).join(', ')}`}{(project.images?.length ?? 0) > 0 && ` · ${project.images!.length} image${project.images!.length !== 1 ? 's' : ''}`}</p>
                 </div>
                 {isDeleting ? (
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground">Delete?</span>
-                    <button
-                      onClick={() => handleDelete(project.id)}
-                      className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold hover:opacity-90"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(null)}
-                      className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground"
-                    >
-                      No
-                    </button>
+                    <button onClick={() => handleDelete(project.id)} className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold hover:opacity-90">Yes</button>
+                    <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground">No</button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => openEdit(project)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      aria-label="Edit"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(project.id)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      aria-label="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <button onClick={() => openEdit(project)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Edit2 size={14} /></button>
+                    <button onClick={() => setDeleteConfirm(project.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"><Trash2 size={14} /></button>
                   </div>
                 )}
               </div>
@@ -734,6 +488,13 @@ export function PortfolioManager() {
           })}
         </div>
       )}
+
+      <MediaPickerModal 
+        isOpen={pickerOpen} 
+        onClose={() => setPickerOpen(false)} 
+        multiple={true}
+        onSelect={handleSelectExisting} 
+      />
     </div>
   )
 }

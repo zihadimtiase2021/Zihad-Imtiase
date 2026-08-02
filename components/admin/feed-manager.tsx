@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react'
 import {
   Trash2, Edit2, Plus, X, Check, Upload, Image, FileVideo,
   BookOpen, Quote, Briefcase, ChevronDown, Loader2, Star,
-  Music, Film, GripVertical,
+  Music, Film, GripVertical, ImagePlus
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MediaPickerModal } from './media-picker-modal'
 
 interface FeedItem {
   id: string
@@ -100,7 +101,6 @@ function MediaThumb({ url, onRemove }: { url: string; onRemove: () => void }) {
         type="button"
         onClick={onRemove}
         className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black/90 transition-colors opacity-0 group-hover/thumb:opacity-100"
-        aria-label="Remove media"
       >
         <X size={11} />
       </button>
@@ -119,10 +119,12 @@ export function FeedManager() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
   const [portfolioProjects, setPortfolioProjects] = useState<PortfolioProject[]>([])
+  
   const fileRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
@@ -139,7 +141,7 @@ export function FeedManager() {
       const res = await fetch('/api/portfolio')
       const data = await res.json()
       setPortfolioProjects(data.projects || [])
-    } catch { /* non-critical */ }
+    } catch { }
   }
 
   async function fetchItems() {
@@ -204,6 +206,19 @@ export function FeedManager() {
     setUploading(false)
   }
 
+  function handleSelectExisting(urls: string[]) {
+    const remainingSlots = 4 - (form.media?.length || 0)
+    const urlsToAdd = urls.slice(0, remainingSlots)
+    
+    if (urlsToAdd.length > 0) {
+      setForm((f) => ({
+        ...f,
+        media: [...(f.media ?? []), ...urlsToAdd],
+      }))
+      addToast(`${urlsToAdd.length} media attached`)
+    }
+  }
+
   function removeMedia(index: number) {
     setForm((f) => ({ ...f, media: (f.media ?? []).filter((_, i) => i !== index) }))
   }
@@ -215,7 +230,6 @@ export function FeedManager() {
       ...form,
       category: CATEGORY_MAP[form.type] ?? 'articles',
       tech: techInput.split(',').map((t) => t.trim()).filter(Boolean),
-      // keep legacy image field as first media item for backwards compat
       image: (form.media ?? [])[0] ?? form.image ?? '',
     }
     try {
@@ -264,7 +278,6 @@ export function FeedManager() {
 
   return (
     <div className="relative">
-      {/* Toast stack */}
       <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <div
@@ -279,7 +292,6 @@ export function FeedManager() {
         ))}
       </div>
 
-      {/* Header bar */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-foreground">Feed Posts</h2>
@@ -297,26 +309,18 @@ export function FeedManager() {
         </button>
       </div>
 
-      {/* Inline form panel */}
       {showForm && (
         <div ref={formRef} className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
-          <div
-            className="flex items-center justify-between px-5 py-4 border-b border-border"
-            style={{ background: '#f4a29510' }}
-          >
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border" style={{ background: '#f4a29510' }}>
             <h3 className="font-semibold text-foreground text-sm">
               {editingId ? 'Edit Post' : 'New Post'}
             </h3>
-            <button
-              onClick={closeForm}
-              className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
+            <button onClick={closeForm} className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               <X size={15} />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
-            {/* Type selector */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                 Post Type
@@ -344,7 +348,6 @@ export function FeedManager() {
               </div>
             </div>
 
-            {/* Title */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Title <span className="text-destructive">*</span>
@@ -359,7 +362,6 @@ export function FeedManager() {
               />
             </div>
 
-            {/* Excerpt */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Excerpt / Short text
@@ -373,7 +375,6 @@ export function FeedManager() {
               />
             </div>
 
-            {/* Full content */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Full Content
@@ -387,7 +388,6 @@ export function FeedManager() {
               />
             </div>
 
-            {/* Testimonial-specific fields */}
             {form.type === 'testimonial' && (
               <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Client Details</p>
@@ -435,7 +435,6 @@ export function FeedManager() {
               </div>
             )}
 
-            {/* Project-specific fields */}
             {form.type === 'project' && (
               <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-3">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Project Details</p>
@@ -462,7 +461,6 @@ export function FeedManager() {
               </div>
             )}
 
-            {/* ── Media upload (multi-file: images, video, audio) ── */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -476,49 +474,45 @@ export function FeedManager() {
                 )}
               </div>
 
-              {/* Thumbnail grid */}
               {mediaCount > 0 && (
-                <div className={cn(
-                  'grid gap-2 mb-2',
-                  mediaCount === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                )}>
+                <div className={cn('grid gap-2 mb-2', mediaCount === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
                   {(form.media ?? []).map((url, i) => (
                     <MediaThumb key={url + i} url={url} onRemove={() => removeMedia(i)} />
                   ))}
                 </div>
               )}
 
-              {/* Upload button (hidden when 4 files) */}
               {mediaCount < 4 && (
-                <div
-                  className={cn(
-                    'border-2 border-dashed rounded-xl transition-colors',
-                    uploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30'
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => fileRef.current?.click()}
-                    className="w-full flex flex-col items-center gap-2 py-5 text-muted-foreground"
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <Loader2 size={22} className="animate-spin" style={{ color: '#f4a295' }} />
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-3">
-                          <Image size={18} />
-                          <FileVideo size={18} />
-                          <Music size={18} />
-                        </div>
-                        <span className="text-xs">
-                          {mediaCount === 0
-                            ? 'Click to add photos, video or audio'
-                            : 'Add more media'}
-                        </span>
-                      </>
+                <div className="grid grid-cols-2 gap-2">
+                  <div
+                    className={cn(
+                      'border-2 border-dashed rounded-xl transition-colors cursor-pointer',
+                      uploading ? 'border-brand/40 bg-brand/5' : 'border-border hover:border-[#f4a295]/50 hover:bg-muted/30'
                     )}
-                  </button>
+                    onClick={() => !uploading && fileRef.current?.click()}
+                  >
+                    <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                      {uploading ? (
+                        <Loader2 size={18} className="animate-spin text-[#f4a295]" />
+                      ) : (
+                        <>
+                          <Upload size={18} />
+                          <span className="text-xs">Upload New</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div
+                    className="border-2 border-dashed rounded-xl transition-colors cursor-pointer border-border hover:border-[#f4a295]/50 hover:bg-muted/30"
+                    onClick={() => setPickerOpen(true)}
+                  >
+                    <div className="flex flex-col items-center gap-1.5 py-4 text-muted-foreground">
+                      <ImagePlus size={18} />
+                      <span className="text-xs">Choose Existing</span>
+                    </div>
+                  </div>
+
                   <input
                     ref={fileRef}
                     type="file"
@@ -531,7 +525,6 @@ export function FeedManager() {
               )}
             </div>
 
-            {/* Linked portfolio project */}
             {portfolioProjects.length > 0 && (
               <div>
                 <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -553,13 +546,9 @@ export function FeedManager() {
                   </select>
                   <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  A &ldquo;View related project&rdquo; card will appear on this post and its detail page.
-                </p>
               </div>
             )}
 
-            {/* Date */}
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Date
@@ -572,7 +561,6 @@ export function FeedManager() {
               />
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 pt-1">
               <button
                 type="submit"
@@ -595,7 +583,6 @@ export function FeedManager() {
         </div>
       )}
 
-      {/* Items list */}
       {loading ? (
         <div className="space-y-2">
           {[1, 2, 3].map((n) => (
@@ -622,15 +609,10 @@ export function FeedManager() {
                 key={item.id}
                 className={cn(
                   'group flex items-center gap-3 px-4 py-3 rounded-xl border transition-all',
-                  isDeleting
-                    ? 'border-destructive/40 bg-destructive/5'
-                    : 'border-border bg-card hover:border-border/80 hover:bg-muted/30'
+                  isDeleting ? 'border-destructive/40 bg-destructive/5' : 'border-border bg-card hover:border-border/80 hover:bg-muted/30'
                 )}
               >
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: typeMeta.color + '18' }}
-                >
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: typeMeta.color + '18' }}>
                   <TypeIcon size={14} style={{ color: typeMeta.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -643,35 +625,13 @@ export function FeedManager() {
                 {isDeleting ? (
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground">Delete?</span>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold hover:opacity-90 transition-opacity"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(null)}
-                      className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      No
-                    </button>
+                    <button onClick={() => handleDelete(item.id)} className="px-3 py-1.5 rounded-lg bg-destructive text-white text-xs font-semibold hover:opacity-90 transition-opacity">Yes</button>
+                    <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors">No</button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => openEdit(item)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      aria-label="Edit"
-                    >
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(item.id)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                      aria-label="Delete"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <button onClick={() => openEdit(item)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Edit2 size={14} /></button>
+                    <button onClick={() => setDeleteConfirm(item.id)} className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"><Trash2 size={14} /></button>
                   </div>
                 )}
               </div>
@@ -679,6 +639,13 @@ export function FeedManager() {
           })}
         </div>
       )}
+
+      <MediaPickerModal 
+        isOpen={pickerOpen} 
+        onClose={() => setPickerOpen(false)} 
+        multiple={true}
+        onSelect={handleSelectExisting} 
+      />
     </div>
   )
 }
