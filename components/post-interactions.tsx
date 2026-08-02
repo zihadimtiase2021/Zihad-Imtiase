@@ -99,15 +99,14 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
       setIsIdentityModalOpen(true)
       return
     }
-    await executeComment()
+    await executeComment(identity)
   }
 
-  const executeComment = async () => {
-    if (!identity) return
+  const executeComment = async (resolvedIdentity: VisitorIdentity) => {
     const newComment: Comment = {
       id: Date.now().toString(),
-      name: identity.isAnonymous ? 'Anonymous' : identity.name || 'Anonymous',
-      avatar: identity.isAnonymous ? '' : identity.avatar,
+      name: resolvedIdentity.isAnonymous ? 'Anonymous' : resolvedIdentity.name || 'Anonymous',
+      avatar: resolvedIdentity.isAnonymous ? '' : resolvedIdentity.avatar,
       text: commentText,
       date: new Date().toISOString()
     }
@@ -149,17 +148,21 @@ export function PostInteractions({ postId, initialLikes = 0, initialComments = [
   }
 
   const saveIdentity = async (isAnonymous: boolean) => {
-    const newIdentity = {
-      name: isAnonymous ? 'Anonymous' : identityName || 'Anonymous',
+    const newIdentity: VisitorIdentity = {
+      name: isAnonymous ? 'Anonymous' : identityName.trim() || 'Anonymous',
       avatar: isAnonymous ? '' : identityAvatar,
       isAnonymous
     }
-    setIdentity(newIdentity)
+    // Persist to localStorage so identity survives page refreshes
     localStorage.setItem('zd-visitor-identity', JSON.stringify(newIdentity))
+    // Update state — but do NOT rely on this for the immediate action below
+    // because setState is async and the closure would still read the old null value.
+    setIdentity(newIdentity)
     setIsIdentityModalOpen(false)
 
+    // Pass newIdentity directly to avoid stale-closure reading the pre-render null state
     if (pendingAction === 'like') executeLike()
-    if (pendingAction === 'comment') await executeComment()
+    if (pendingAction === 'comment') await executeComment(newIdentity)
     setPendingAction(null)
   }
 
