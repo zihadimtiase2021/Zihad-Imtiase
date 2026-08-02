@@ -2,16 +2,17 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PageShell } from '@/components/page-shell'
-import { ProfileHero, type HeroData } from '@/components/profile-hero'
+import { ProfileHero, type HeroData, type ContactData } from '@/components/profile-hero'
 import { FeedItem } from '@/components/feed-item'
 import type { FeedItem as FeedItemType } from '@/lib/data'
 
 interface HomeClientProps {
   initialItems: FeedItemType[]
   heroData: HeroData
+  contactData?: ContactData
 }
 
-export function HomeClient({ initialItems, heroData }: HomeClientProps) {
+export function HomeClient({ initialItems, heroData, contactData = {} }: HomeClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -40,6 +41,7 @@ export function HomeClient({ initialItems, heroData }: HomeClientProps) {
         activeFilter={activeFilter}
         onFilterChange={handleFilterChange}
         heroData={heroData}
+        contactData={contactData}
       />
 
       <section aria-label="Feed">
