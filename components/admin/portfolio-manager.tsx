@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  Trash2, Edit2, Plus, X, Check, Upload, Image, ExternalLink,
-  Code, Loader2, Star, TrendingUp, AlignLeft, GripVertical, ImagePlus, Settings2
+  Trash2, Edit2, Plus, X, Check, Upload, ExternalLink, Image,
+  Code, Loader2, Star, TrendingUp, AlignLeft, GripVertical, ImagePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
+import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
+import { useToast } from '@/hooks/use-toast'
 
 interface ContentBlock {
   id: string
@@ -46,7 +48,6 @@ const EMPTY: Omit<Project, 'id'> = {
 }
 
 const CATEGORIES = ['development', 'webflow', 'design', 'marketing']
-type Toast = { id: number; msg: string; ok: boolean }
 
 function newBlockId() {
   return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -61,8 +62,8 @@ export function PortfolioManager() {
   const [saving, setSaving] = useState(false)
   const [galleryUploading, setGalleryUploading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
-  const [toasts, setToasts] = useState<Toast[]>([])
+  const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
+  const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
   const [resultKey, setResultKey] = useState('')
@@ -72,12 +73,6 @@ export function PortfolioManager() {
   const formRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { fetchProjects() }, [])
-
-  function addToast(msg: string, ok = true) {
-    const id = Date.now()
-    setToasts((t) => [...t, { id, msg, ok }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
-  }
 
   async function fetchProjects() {
     try {
@@ -226,19 +221,7 @@ export function PortfolioManager() {
 
   return (
     <div className="relative">
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={cn(
-              'px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto',
-              t.ok ? 'bg-foreground text-background' : 'bg-destructive text-white'
-            )}
-          >
-            {t.msg}
-          </div>
-        ))}
-      </div>
+      <ToastStack toasts={toasts} />
 
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -257,22 +240,7 @@ export function PortfolioManager() {
         </button>
       </div>
 
-      <div className="flex items-center gap-3 bg-muted/40 border border-border rounded-xl px-4 py-3 mb-6">
-        <Settings2 size={18} className="text-muted-foreground" />
-        <div className="flex-1">
-          <p className="text-xs font-semibold text-foreground">Image Upload Format</p>
-          <p className="text-[10px] text-muted-foreground">Automatically compress images to this format upon upload.</p>
-        </div>
-        <select
-          value={uploadFormat}
-          onChange={(e) => setUploadFormat(e.target.value as any)}
-          className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-brand/30"
-        >
-          <option value="webp">WebP (Recommended)</option>
-          <option value="avif">AVIF (Best Compression)</option>
-          <option value="original">Original Format</option>
-        </select>
-      </div>
+      <UploadFormatPicker value={uploadFormat} onChange={setUploadFormat} />
 
       {showForm && (
         <div ref={formRef} className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">

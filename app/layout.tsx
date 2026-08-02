@@ -4,10 +4,11 @@ import { Inter, JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { ThemeProvider } from '@/components/theme-provider'
 import { readSettingsData } from '@/lib/data'
-import { QuickCompose } from '@/components/quick-compose' // <-- ১. ইমপোর্ট করুন
+import { QuickCompose } from '@/components/quick-compose'
 import './globals.css'
 
-export const dynamic = 'force-dynamic'
+// Settings fetch is cached by Next.js fetch caching — no force-dynamic needed here.
+// Individual pages that need real-time data can opt into dynamic rendering themselves.
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains' })

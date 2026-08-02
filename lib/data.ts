@@ -1,109 +1,91 @@
 /**
- * Plain data-read helpers using Native MongoDB Driver.
- * Safe to import in API route handlers and Server Components.
+ * Read-only data helpers using the MongoDB driver.
+ * Safe to call from Server Components and API Route Handlers.
+ * Re-exports shared types so consumers import from one place.
  */
 import { getDb } from '@/lib/db'
+import type { FeedItem, Project, SiteSettings } from '@/lib/types'
 
-export interface FeedItem {
-  id: string
-  type: string
-  title: string
-  excerpt: string
-  content: string
-  category: string
-  image?: string
-  media?: string[]
-  author: string
-  clientName?: string
-  clientRole?: string
-  clientImage?: string
-  date: string
-  likes: number
-  replies: number
-  rating?: number
-  tech?: string[]
-  link?: string
-  featured?: boolean
-  linkedProjectId?: string
+export type { FeedItem, Project, SiteSettings }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function stripId<T extends { _id?: unknown }>(doc: T): Omit<T, '_id'> {
+  const { _id, ...rest } = doc
+  return rest as Omit<T, '_id'>
 }
 
-export interface Project {
-  id: string
-  title: string
-  category: string
-  description: string
-  tech: string[]
-  results: Record<string, string>
-  link?: string
-  github?: string
-  image?: string
-  images?: string[]
-  content?: Array<{
-    id: string
-    type: 'paragraph' | 'heading' | 'image' | 'divider'
-    text?: string
-    url?: string
-    caption?: string
-  }>
-  featured: boolean
-}
-
-export interface SiteSettings {
-  hero: { coverMedia: string; profileMedia: string }
-  about: { media: string[] }
-}
+// ── Feed ──────────────────────────────────────────────────────────────────────
 
 export async function readFeedData(): Promise<{ items: FeedItem[] }> {
   try {
     const db = await getDb()
-    const collection = db.collection('feed')
-    const docs = await collection.find({}).sort({ date: -1, _id: -1 }).toArray()
-
-    const items = docs.map((doc) => {
-      const { _id, ...rest } = doc
-      return rest as unknown as FeedItem
-    })
-
-    return { items }
+    const docs = await db.collection('feed').find({}).sort({ date: -1, _id: -1 }).toArray()
+    return { items: docs.map((d) => stripId(d) as unknown as FeedItem) }
   } catch (error) {
-    console.error('[readFeedData error]', error)
+    console.error('[readFeedData]', error)
     return { items: [] }
   }
 }
 
+// ── Portfolio ─────────────────────────────────────────────────────────────────
+
 export async function readPortfolioData(): Promise<{ projects: Project[] }> {
   try {
     const db = await getDb()
-    const collection = db.collection('portfolio')
-    const docs = await collection.find({}).sort({ _id: -1 }).toArray()
-
-    const projects = docs.map((doc) => {
-      const { _id, ...rest } = doc
-      return rest as unknown as Project
-    })
-
-    return { projects }
+    const docs = await db.collection('portfolio').find({}).sort({ _id: -1 }).toArray()
+    return { projects: docs.map((d) => stripId(d) as unknown as Project) }
   } catch (error) {
-    console.error('[readPortfolioData error]', error)
+    console.error('[readPortfolioData]', error)
     return { projects: [] }
   }
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+const SETTINGS_ID = 'site_settings'
+
+export const DEFAULT_SETTINGS: SiteSettings = {
+  hero: {
+    coverMedia: '',
+    profileMedia: '',
+    name: 'Zihad Imtiase',
+    title: 'Frontend Developer & Webflow Specialist',
+    bio: 'Crafting websites that drive engagement, conversions & success.',
+    tags: ['#frontend', '#webflow', '#react', '#landingpage', '#CRO'],
+    location: 'Dhaka Cantonment, Bangladesh',
+    joinDate: 'Joined March 2022',
+    stats: [
+      { value: '50+', label: 'Projects' },
+      { value: '40+', label: 'Clients' },
+      { value: '4+', label: 'Years' },
+    ],
+    hireMeLink: '/contact',
+  },
+  about: { media: [], introText: '', timeline: [], stack: [], values: [] },
+  contact: { email: '', phone: '', address: '', shortText: '', socials: [] },
+  meta: { title: '', description: '', favicon: '' },
+}
+
 export async function readSettingsData(): Promise<SiteSettings> {
-  const DEFAULT: SiteSettings = { hero: { coverMedia: '', profileMedia: '' }, about: { media: [] } }
   try {
     const db = await getDb()
-    const collection = db.collection('settings')
-    const doc = await collection.findOne({ _id: 'site_settings' as unknown as undefined })
+    const doc = await db
+      .collection('settings')
+      .findOne({ _id: SETTINGS_ID as unknown as undefined })
 
-    if (!doc) {
-      return DEFAULT
-    }
+    if (!doc) return structuredClone(DEFAULT_SETTINGS)
 
     const { _id, ...rest } = doc
-    return { ...DEFAULT, ...(rest as unknown as SiteSettings) }
+
+    return {
+      hero: { ...DEFAULT_SETTINGS.hero, ...(rest.hero ?? {}) },
+      about: { ...DEFAULT_SETTINGS.about, ...(rest.about ?? {}) },
+      contact: { ...DEFAULT_SETTINGS.contact, ...(rest.contact ?? {}) },
+      meta: { ...DEFAULT_SETTINGS.meta, ...(rest.meta ?? {}) },
+    } as SiteSettings
   } catch (error) {
-    console.error('[readSettingsData error]', error)
-    return DEFAULT
+    console.error('[readSettingsData]', error)
+    return structuredClone(DEFAULT_SETTINGS)
   }
 }

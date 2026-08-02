@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react'
 import {
-  Trash2, Edit2, Plus, X, Check, Upload, Image, FileVideo,
+  Trash2, Edit2, Plus, X, Check, Upload,
   BookOpen, Quote, Briefcase, ChevronDown, Loader2, Star,
-  Music, Film, GripVertical, ImagePlus, Settings2
+  Music, Film, GripVertical, ImagePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
+import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
+import { useToast } from '@/hooks/use-toast'
 
 interface FeedItem {
   id: string
@@ -70,8 +72,6 @@ const CATEGORY_MAP: Record<string, string> = {
   project: 'projects',
 }
 
-type Toast = { id: number; msg: string; ok: boolean }
-
 function mediaType(url: string): 'image' | 'video' | 'audio' {
   if (/\.(mp4|webm|mov)$/i.test(url)) return 'video'
   if (/\.(mp3|ogg|wav|aac|flac|m4a)$/i.test(url)) return 'audio'
@@ -120,8 +120,8 @@ export function FeedManager() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [uploadFormat, setUploadFormat] = useState<'original' | 'webp' | 'avif'>('webp')
-  const [toasts, setToasts] = useState<Toast[]>([])
+  const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
+  const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [techInput, setTechInput] = useState('')
   const [portfolioProjects, setPortfolioProjects] = useState<PortfolioProject[]>([])
@@ -130,12 +130,6 @@ export function FeedManager() {
   const formRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { fetchItems(); fetchPortfolioProjects() }, [])
-
-  function addToast(msg: string, ok = true) {
-    const id = Date.now()
-    setToasts((t) => [...t, { id, msg, ok }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000)
-  }
 
   async function fetchPortfolioProjects() {
     try {
@@ -281,19 +275,7 @@ export function FeedManager() {
 
   return (
     <div className="relative">
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={cn(
-              'px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg pointer-events-auto transition-all',
-              t.ok ? 'bg-foreground text-background' : 'bg-destructive text-white'
-            )}
-          >
-            {t.msg}
-          </div>
-        ))}
-      </div>
+      <ToastStack toasts={toasts} />
 
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -312,23 +294,7 @@ export function FeedManager() {
         </button>
       </div>
 
-      {/* Global Image Upload Format Selector */}
-      <div className="flex items-center gap-3 bg-muted/40 border border-border rounded-xl px-4 py-3 mb-6">
-        <Settings2 size={18} className="text-muted-foreground" />
-        <div className="flex-1">
-          <p className="text-xs font-semibold text-foreground">Image Upload Format</p>
-          <p className="text-[10px] text-muted-foreground">Automatically compress images to this format upon upload.</p>
-        </div>
-        <select
-          value={uploadFormat}
-          onChange={(e) => setUploadFormat(e.target.value as any)}
-          className="text-xs px-3 py-1.5 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-brand/30"
-        >
-          <option value="webp">WebP (Recommended)</option>
-          <option value="avif">AVIF (Best Compression)</option>
-          <option value="original">Original Format</option>
-        </select>
-      </div>
+      <UploadFormatPicker value={uploadFormat} onChange={setUploadFormat} />
 
       {showForm && (
         <div ref={formRef} className="mb-6 rounded-2xl border border-border bg-card overflow-hidden">
