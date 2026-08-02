@@ -7,6 +7,7 @@ import { Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music, Mo
 import { cn } from '@/lib/utils'
 import { PostInteractions } from '@/components/post-interactions'
 import { deleteFeedItem, deletePortfolioProject, updateFeedItem } from '@/lib/data-actions'
+import { useAdminStatus } from '@/hooks/use-admin-status'
 
 type FeedType = 'article' | 'testimonial' | 'project' | 'portfolio' | 'post' | 'general'
 
@@ -71,20 +72,13 @@ export function FeedItem({
   const TypeIcon = meta.icon
   const detailHref = id ? `/feed/${id}` : undefined
 
-  const [isAdmin, setIsAdmin] = useState(false)
+  const isAdmin = useAdminStatus()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    fetch('/api/auth/status')
-      .then(res => res.json())
-      .then(data => setIsAdmin(data.authenticated))
-      .catch(() => setIsAdmin(false))
-  }, [])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
