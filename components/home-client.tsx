@@ -19,10 +19,18 @@ export function HomeClient({ initialItems, heroData, contactData = {} }: HomeCli
   // Read active filter from URL search param ?cat=, fallback to 'all'
   const activeFilter = searchParams.get('cat') ?? 'all'
 
-  const filteredItems =
-    activeFilter === 'all'
-      ? initialItems
-      : initialItems.filter((item) => item.category === activeFilter)
+  const filteredItems = (() => {
+    const filtered =
+      activeFilter === 'all'
+        ? initialItems
+        : initialItems.filter((item) => item.category === activeFilter)
+    // Pinned posts always appear first (DB already sorts them, but guard client-side too)
+    return [...filtered].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1
+      if (!a.pinned && b.pinned) return 1
+      return 0
+    })
+  })()
 
   function handleFilterChange(value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -72,6 +80,7 @@ export function HomeClient({ initialItems, heroData, contactData = {} }: HomeCli
               projectTech={item.tech}
               projectLink={item.link}
               linkedProjectId={item.linkedProjectId}
+              pinned={item.pinned}
             />
           ))
         )}
