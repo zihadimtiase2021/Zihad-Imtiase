@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -28,9 +29,24 @@ export function NavSidebar() {
   const { theme, toggle } = useTheme()
   const isAdmin = useAdminStatus()
 
-  const navItems = isAdmin
+  // Hydration mismatch ফিক্স করার জন্য mounted স্টেট
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // সার্ভার এবং ক্লায়েন্ট প্রথমবার শুধুমাত্র PUBLIC_NAV দেখবে
+  // মাউন্ট হওয়ার পর যদি isAdmin ট্রু হয়, তবেই Admin লিংকটি যোগ হবে
+  const navItems = mounted && isAdmin
     ? [...PUBLIC_NAV, { label: 'Admin', href: '/admin', icon: Database }]
     : PUBLIC_NAV
+
+  // Hydration ফিক্স: theme আইকন যাতে সার্ভার-ক্লায়েন্ট মিসম্যাচ না করে
+  // মাউন্ট না হওয়া পর্যন্ত ডিফল্ট কোনো আইকন বা স্পেস দেখাতে পারেন। 
+  // এখানে আমরা মাউন্ট হওয়ার আগ পর্যন্ত Moon দেখাচ্ছি সার্ভারের জন্য।
+  const ThemeIcon = mounted && theme === 'dark' ? Sun : Moon
+  const themeText = mounted && theme === 'dark' ? 'Light mode' : 'Dark mode'
 
   return (
     <>
@@ -100,8 +116,9 @@ export function NavSidebar() {
             aria-label="Toggle theme"
             className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-all w-full"
           >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            {/* Theme 아이কন এবং টেক্সট */}
+            <ThemeIcon size={18} />
+            {themeText}
           </button>
 
           <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-muted transition-all cursor-default">
