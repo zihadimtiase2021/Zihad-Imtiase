@@ -11,6 +11,9 @@ import { cn } from '@/lib/utils'
 import { MediaPickerModal } from './media-picker-modal'
 import { ToastStack, UploadFormatPicker, type UploadFormat } from './shared'
 import { useToast } from '@/hooks/use-toast'
+import { CreatableSelect } from './creatable-select'
+import { TechTagInput } from './tech-tag-input'
+import { NewPostComposer } from './new-post-composer'
 
 // ─── Feed item types ──────────────────────────────────────────────────────────
 
@@ -90,18 +93,16 @@ interface Project {
 const PROJECT_EMPTY: Omit<Project, 'id'> = {
   title: '',
   description: '',
-  category: 'development',
+  category: '',
   image: '',
   images: [],
   content: [],
   tech: [],
-  results: { result: '' },
+  results: {},
   link: '',
   github: '',
   featured: false,
 }
-
-const PROJECT_CATEGORIES = ['development', 'webflow', 'design', 'marketing']
 
 function newBlockId() {
   return `blk-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -224,7 +225,6 @@ export function FeedManager() {
   const [projects, setProjects] = useState<Project[]>([])
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [projectForm, setProjectForm] = useState<Omit<Project, 'id'>>(PROJECT_EMPTY)
-  const [techInput, setTechInput] = useState('')
   const [resultKey, setResultKey] = useState('')
   const [resultVal, setResultVal] = useState('')
   const [galleryUploading, setGalleryUploading] = useState(false)
@@ -237,12 +237,19 @@ export function FeedManager() {
   const [uploadFormat, setUploadFormat] = useState<UploadFormat>('webp')
   const { toasts, addToast } = useToast()
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [categories, setCategories] = useState<string[]>([])
+  const [techSuggestions, setTechSuggestions] = useState<string[]>([])
 
   const feedFileRef = useRef<HTMLInputElement>(null)
   const galleryRef = useRef<HTMLInputElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { fetchItems(); fetchProjects() }, [])
+  useEffect(() => {
+    fetchItems()
+    fetchProjects()
+    fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || [])).catch(() => {})
+    fetch('/api/technologies').then(r => r.json()).then(d => setTechSuggestions(d.technologies || [])).catch(() => {})
+  }, [])
 
   // ── Data fetchers ──
 
@@ -302,8 +309,7 @@ export function FeedManager() {
   function openEditProject(project: Project) {
     setActiveKind('project')
     setEditingProjectId(project.id)
-    setProjectForm({ ...project, images: project.images ?? [], content: project.content ?? [] })
-    setTechInput(Array.isArray(project.tech) ? project.tech.join(', ') : '')
+    setProjectForm({ ...project, images: project.images ?? [], content: project.content ?? [], tech: project.tech ?? [] })
     const firstEntry = Object.entries(project.results ?? {})[0]
     setResultKey(firstEntry?.[0] ?? '')
     setResultVal(firstEntry?.[1] ?? '')
@@ -438,7 +444,7 @@ export function FeedManager() {
   async function handleProjectSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const techArray = techInput.split(',').map((t) => t.trim()).filter(Boolean)
+    const techArray = (projectForm.tech ?? []).filter(Boolean)
     const results = resultKey.trim() ? { [resultKey.trim()]: resultVal.trim() } : {}
     const coverImage = projectForm.images?.[0] ?? projectForm.image ?? ''
     const payload = { ...projectForm, tech: techArray, results, image: coverImage }
@@ -454,6 +460,14 @@ export function FeedManager() {
       if (res.ok) {
         const saved = await res.json()
         addToast(editingProjectId ? 'Project updated' : 'Project added')
+
+        // Merge new tech tags into suggestions
+        if (techArray.length > 0) {
+          setTechSuggestions(prev => {
+            const merged = new Set([...prev, ...techArray])
+            return Array.from(merged).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+          })
+        }
 
         if (!editingProjectId) {
           const projectData = saved.project ?? payload
@@ -529,7 +543,7 @@ export function FeedManager() {
             {items.length} {items.length === 1 ? 'post' : 'posts'} total
           </p>
         </div>
-        <TypePickerPopover onSelect={openNew} />
+        <NewPostComposer onSuccess={() => { fetchItems(); fetchProjects() }} />
       </div>
 
       <UploadFormatPicker value={uploadFormat} onChange={setUploadFormat} />
@@ -725,18 +739,20 @@ export function FeedManager() {
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                  <div className="relative">
-                    <select
-                      value={projectForm.category}
-                      onChange={(e) => setProject('category', e.target.value)}
-                      className="w-full appearance-none px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand pr-8"
-                    >
-                      {PROJECT_CATEGORIES.map((c) => (
-                        <option key={c} value={c} className="capitalize">{c.charAt(0).toUpperCase() + c.slice(1)}</option>
-                      ))}
-                    </select>
-                    <Code size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                  </div>
+                  <CreatableSelect
+                    value={projectForm.category}
+                    onChange={(val) => setProject('category', val)}
+                    categories={categories}
+                    onCreateCategory={async (name) => {
+                      try {
+                        const res = await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+                        const data = await res.json()
+                        if (res.ok && data.success) { setCategories(prev => [...prev, name].sort()); addToast(`Category "${name}" created`); return true }
+                        addToast(data.error || 'Failed to create category', false); return false
+                      } catch { addToast('Failed to create category', false); return false }
+                    }}
+                    disabled={saving}
+                  />
                 </div>
                 <div className="flex flex-col justify-end pb-0.5">
                   <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Featured</label>
@@ -775,23 +791,14 @@ export function FeedManager() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Technologies <span className="text-xs font-normal normal-case text-muted-foreground">(comma-separated)</span>
-                </label>
-                <input
-                  type="text"
-                  value={techInput}
-                  onChange={(e) => setTechInput(e.target.value)}
-                  placeholder="React, Webflow, TailwindCSS, Stripe"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand/30 focus:border-brand"
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Technologies</label>
+                <TechTagInput
+                  value={projectForm.tech ?? []}
+                  onChange={(tags) => setProject('tech', tags)}
+                  suggestions={techSuggestions}
+                  disabled={saving}
+                  placeholder="React, TailwindCSS, Stripe..."
                 />
-                {techInput.trim() && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {techInput.split(',').map((t) => t.trim()).filter(Boolean).map((t) => (
-                      <span key={t} className="px-2 py-0.5 rounded-full text-[11px] bg-muted text-muted-foreground">{t}</span>
-                    ))}
-                  </div>
-                )}
               </div>
 
               <div>
