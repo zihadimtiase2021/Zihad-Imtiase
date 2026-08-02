@@ -3,15 +3,12 @@ import { PageShell } from '@/components/page-shell'
 import { readFeedData, readSettingsData } from '@/lib/data'
 import { HomeClient } from '@/components/home-client'
 
-// এই লাইনটি Next.js কে ক্যাশ করতে নিষেধ করবে (Real-time updates)
 export const dynamic = 'force-dynamic'
 
 export default async function HomePage() {
-  // সার্ভারে সরাসরি ডাটাবেস ফাংশন কল হচ্ছে (API রিকোয়েস্ট বাইপাস করে)
-  // টাইপস্ক্রিপ্ট বাইপাস করার জন্য as any ব্যবহার করা হলো
   const [feedData, settingsData] = await Promise.all([
     readFeedData(),
-    readSettingsData() as any,
+    readSettingsData(),
   ])
 
   return (
@@ -26,9 +23,10 @@ export default async function HomePage() {
       }
     >
       {/* ডাটাগুলো props হিসেবে Client Component এ পাঠানো হচ্ছে */}
-      <HomeClient 
-        initialItems={feedData.items} 
-        heroData={settingsData?.hero ?? {}} 
+      <HomeClient
+        initialItems={feedData.items}
+        heroData={settingsData?.hero ?? {}}
+        contactData={settingsData?.contact ?? {}}
       />
     </Suspense>
   )
