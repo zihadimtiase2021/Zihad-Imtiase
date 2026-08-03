@@ -25,7 +25,7 @@ export function InfoSidebar() {
 
       {/* About card */}
       <div className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-bold text-sm text-foreground mb-3">About Zihad</h2>
+        <h3 className="font-bold text-sm text-foreground mb-3">About Zihad</h3>
         <p className="text-sm text-muted-foreground leading-relaxed mb-4">
           Frontend Developer & Webflow specialist crafting websites that drive real engagement and conversions.
         </p>
@@ -52,7 +52,7 @@ export function InfoSidebar() {
 
       {/* Skills */}
       <div className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-bold text-sm text-foreground mb-3">Skills</h2>
+        <h3 className="font-bold text-sm text-foreground mb-3">Skills</h3>
         <div className="flex flex-wrap gap-2">
           {SKILLS.map((skill) => (
             <span
@@ -68,7 +68,7 @@ export function InfoSidebar() {
 
       {/* Services */}
       <div className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-bold text-sm text-foreground mb-3">Services</h2>
+        <h3 className="font-bold text-sm text-foreground mb-3">Services</h3>
         <div className="flex flex-col gap-3">
           {SERVICES.map((s) => (
             <div key={s.title} className="flex items-start gap-2.5">
@@ -84,7 +84,7 @@ export function InfoSidebar() {
 
       {/* Stats */}
       <div className="rounded-2xl border border-border bg-card p-4">
-        <h2 className="font-bold text-sm text-foreground mb-3">By the numbers</h2>
+        <h3 className="font-bold text-sm text-foreground mb-3">By the numbers</h3>
         <div className="grid grid-cols-2 gap-3">
           {[
             { value: '50+', label: 'Projects' },

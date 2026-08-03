@@ -192,21 +192,59 @@ export function FeedItem({
         
         {projectTech.length > 0 && <div className="flex flex-wrap gap-1.5 mb-3">{projectTech.map((tech) => (<span key={tech} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">{tech}</span>))}</div>}
         {projectLink && (
-          <a
-            href={linkedProjectId ? `/portfolio/${linkedProjectId}` : projectLink}
-            target={linkedProjectId ? undefined : '_blank'}
-            rel={linkedProjectId ? undefined : 'noopener noreferrer'}
-            className="inline-flex items-center gap-1 text-xs font-medium mb-3 transition-colors hover:opacity-80"
-            style={{ color: '#f4a295' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ExternalLink size={11} /> View project details
-          </a>
+          // When this FeedItem is wrapped in a <Link> (detailHref is set), we
+          // cannot render another <a> inside it — invalid HTML and causes a
+          // React hydration error. Use a <button> that imperatively navigates
+          // so we stay within a single anchor context.
+          detailHref ? (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs font-medium mb-3 transition-colors hover:opacity-80"
+              style={{ color: '#f4a295' }}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                const dest = linkedProjectId ? `/portfolio/${linkedProjectId}` : projectLink
+                if (linkedProjectId) {
+                  router.push(dest)
+                } else {
+                  window.open(dest, '_blank', 'noopener,noreferrer')
+                }
+              }}
+            >
+              <ExternalLink size={11} /> View project details
+            </button>
+          ) : (
+            <a
+              href={linkedProjectId ? `/portfolio/${linkedProjectId}` : projectLink}
+              target={linkedProjectId ? undefined : '_blank'}
+              rel={linkedProjectId ? undefined : 'noopener noreferrer'}
+              className="inline-flex items-center gap-1 text-xs font-medium mb-3 transition-colors hover:opacity-80"
+              style={{ color: '#f4a295' }}
+            >
+              <ExternalLink size={11} /> View project details
+            </a>
+          )
         )}
 
         <div className="relative cursor-default mt-1" onClick={(e) => e.stopPropagation()}>
           <div className="absolute top-4 right-0 flex items-center gap-5 pt-3 z-10 bg-background pl-2">
-            {detailHref && <Link href={detailHref} className="text-xs font-semibold transition-colors hover:underline" style={{ color: '#f4a295' }}>Read more →</Link>}
+            {/* When detailHref is set the whole card is already a <Link>, so
+                "Read more" must be a button — not a nested anchor. */}
+            {detailHref && (
+              detailHref ? (
+                <button
+                  type="button"
+                  className="text-xs font-semibold transition-colors hover:underline"
+                  style={{ color: '#f4a295' }}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(detailHref) }}
+                >
+                  Read more →
+                </button>
+              ) : (
+                <Link href={detailHref} className="text-xs font-semibold transition-colors hover:underline" style={{ color: '#f4a295' }}>Read more →</Link>
+              )
+            )}
             <button className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors" aria-label="Share" onClick={handleShare}><Share2 size={15} /></button>
           </div>
           <PostInteractions postId={id || `post-${Date.now()}`} initialLikes={initialLikes} initialComments={[]} />
