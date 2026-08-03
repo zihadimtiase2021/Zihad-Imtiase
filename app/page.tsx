@@ -27,6 +27,7 @@ export default async function HomePage() {
         initialItems={feedData.items}
         heroData={settingsData?.hero ?? {}}
         contactData={settingsData?.contact ?? {}}
+        initialSettings={settingsData}
       />
     </Suspense>
   )

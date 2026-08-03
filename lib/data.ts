@@ -53,10 +53,15 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   hero: {
     coverMedia: '',
     profileMedia: '',
+    firstName: 'Zihad',
+    lastName: 'Imtiase',
+    nickname: '',
     name: 'Zihad Imtiase',
     title: 'Frontend Developer & Webflow Specialist',
     bio: 'Crafting websites that drive engagement, conversions & success.',
     tags: ['#frontend', '#webflow', '#react', '#landingpage', '#CRO'],
+    country: 'Bangladesh',
+    city: 'Dhaka Cantonment',
     location: 'Dhaka Cantonment, Bangladesh',
     joinDate: 'Joined March 2022',
     stats: [
@@ -67,7 +72,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
     hireMeLink: '/contact',
   },
   about: { media: [], introText: '', timeline: [], stack: [], values: [] },
-  contact: { email: '', phone: '', address: '', shortText: '', socials: [] },
+  contact: { email: '', phone: '', whatsapp: '', address: '', shortText: '', contactHeading: '', contactSubHeading: '', socials: [] },
   meta: { title: '', description: '', favicon: '' },
 }
 
@@ -82,12 +87,17 @@ export async function readSettingsData(): Promise<SiteSettings> {
 
     const { _id, ...rest } = doc
 
-    return {
+    const merged: SiteSettings = {
       hero: { ...DEFAULT_SETTINGS.hero, ...(rest.hero ?? {}) },
       about: { ...DEFAULT_SETTINGS.about, ...(rest.about ?? {}) },
       contact: { ...DEFAULT_SETTINGS.contact, ...(rest.contact ?? {}) },
       meta: { ...DEFAULT_SETTINGS.meta, ...(rest.meta ?? {}) },
-    } as SiteSettings
+    }
+    // Derive composite location if not already stored
+    if (!merged.hero.location && (merged.hero.city || merged.hero.country)) {
+      merged.hero.location = [merged.hero.city, merged.hero.country].filter(Boolean).join(', ')
+    }
+    return merged
   } catch (error) {
     console.error('[readSettingsData]', error)
     return structuredClone(DEFAULT_SETTINGS)

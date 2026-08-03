@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, Calendar, MessageCircle, Mail, Briefcase } from 'lucide-react'
+import { MapPin, Calendar, MessageCircle, Mail, Briefcase, Pencil, Trash2 } from 'lucide-react'
+import { MediaPicker } from '@/components/media-picker'
 
 const TABS = [
   { label: 'All', value: 'all' },
@@ -22,7 +23,6 @@ export interface HeroData {
   hireMeLink?: string
 }
 
-// 🟢 Added ContactData interface to receive email from site settings
 export interface ContactData {
   email?: string
 }
@@ -31,21 +31,65 @@ interface ProfileHeroProps {
   activeFilter?: string
   onFilterChange?: (value: string) => void
   heroData?: HeroData
-  contactData?: ContactData // 🟢 Prop for contact data
+  contactData?: ContactData
+  isAdmin?: boolean
+  onCoverChange?: (url: string) => void
+  onCoverDelete?: () => void
+  onAvatarChange?: (url: string) => void
+  onAvatarDelete?: () => void
+  onEditProfile?: () => void
 }
 
-function isVideo(url: string) { 
-  return /\.(mp4|webm|mov)$/i.test(url) 
+function isVideo(url: string) {
+  return /\.(mp4|webm|mov)$/i.test(url)
+}
+
+// Small floating action button used for media edit overlays
+function EditChip({
+  onPickMedia,
+  onDelete,
+  hasMedia,
+  label,
+}: {
+  onPickMedia: (url: string) => void
+  onDelete: () => void
+  hasMedia: boolean
+  label: string
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {/* MediaPicker wrapped in a styled chip */}
+      <div
+        className="flex items-center justify-center w-8 h-8 rounded-full bg-background/90 backdrop-blur border border-border shadow-sm hover:bg-background transition-colors"
+        title={`Change ${label}`}
+      >
+        <MediaPicker onSelect={(m) => onPickMedia(m[0].url)} />
+      </div>
+      {hasMedia && (
+        <button
+          onClick={onDelete}
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-destructive/90 backdrop-blur text-white shadow-sm hover:bg-destructive transition-colors"
+          title={`Remove ${label}`}
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
+    </div>
+  )
 }
 
 export function ProfileHero({
   activeFilter = 'all',
   onFilterChange,
   heroData = {},
-  contactData = {}, // 🟢 Default empty object
+  contactData = {},
+  isAdmin = false,
+  onCoverChange,
+  onCoverDelete,
+  onAvatarChange,
+  onAvatarDelete,
+  onEditProfile,
 }: ProfileHeroProps) {
-  
-  // Fallbacks
   const coverMedia = heroData.coverMedia || ''
   const profileMedia = heroData.profileMedia || ''
   const name = heroData.name || 'Zihad Imtiase'
@@ -59,13 +103,11 @@ export function ProfileHero({
     { value: '40+', label: 'Clients' },
     { value: '4+', label: 'Years' },
   ]
-  const email = contactData.email || '' // 🟢 Extracted email
+  const email = contactData.email || ''
 
-  // Dynamic Hire Me Link & Icon Logic
   const hireMeLink = heroData.hireMeLink || '/contact'
   const isMail = hireMeLink.startsWith('mailto:')
   const isWhatsApp = hireMeLink.includes('wa.me') || hireMeLink.includes('whatsapp')
-  
   const HireIcon = isMail ? Mail : isWhatsApp ? MessageCircle : Briefcase
   const isExternal = hireMeLink.startsWith('http') || hireMeLink.startsWith('mailto:')
 
@@ -75,20 +117,9 @@ export function ProfileHero({
       <div className="h-28 md:h-36 w-full relative overflow-hidden">
         {coverMedia ? (
           isVideo(coverMedia) ? (
-            <video
-              src={coverMedia}
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <video src={coverMedia} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />
           ) : (
-            <img
-              src={coverMedia}
-              alt="Cover"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={coverMedia} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
           )
         ) : (
           <div
@@ -96,11 +127,7 @@ export function ProfileHero({
             style={{ background: 'linear-gradient(135deg, #f4a29520 0%, #e8806f18 50%, #f4a29508 100%)' }}
           />
         )}
-        
-        {/* Soft Brand Gradient Overlay */}
         <div className="absolute inset-0 bg-gradient-to-r from-[#f4a295]/30 via-background/10 to-background/60 pointer-events-none" />
-
-        {/* Dot Overlay Pattern */}
         <div
           className="absolute inset-0 opacity-[0.07] pointer-events-none mix-blend-overlay"
           style={{
@@ -108,6 +135,18 @@ export function ProfileHero({
             backgroundSize: '28px 28px',
           }}
         />
+
+        {/* Admin: Cover edit controls */}
+        {isAdmin && (
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+            <EditChip
+              onPickMedia={(url) => onCoverChange?.(url)}
+              onDelete={() => onCoverDelete?.()}
+              hasMedia={!!coverMedia}
+              label="cover"
+            />
+          </div>
+        )}
       </div>
 
       <div className="px-4 pb-4">
@@ -116,20 +155,9 @@ export function ProfileHero({
           <div className="relative">
             {profileMedia ? (
               isVideo(profileMedia) ? (
-                <video
-                  src={profileMedia}
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  className="w-20 w-20 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm"
-                />
+                <video src={profileMedia} autoPlay muted loop playsInline className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm" />
               ) : (
-                <img
-                  src={profileMedia}
-                  alt={name}
-                  className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm"
-                />
+                <img src={profileMedia} alt={name} className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm" />
               )
             ) : (
               <div
@@ -140,36 +168,58 @@ export function ProfileHero({
               </div>
             )}
             <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full bg-green-500 border-2 border-background" />
+
+            {/* Admin: Avatar edit pencil overlay */}
+            {isAdmin && (
+              <div className="absolute -bottom-1 -right-1 z-20">
+                <div className="w-7 h-7 rounded-full bg-background/95 border border-border shadow-sm flex items-center justify-center overflow-hidden">
+                  <MediaPicker onSelect={(m) => onAvatarChange?.(m[0].url)} />
+                </div>
+              </div>
+            )}
           </div>
 
-          {isExternal ? (
-            <a
-              href={hireMeLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
-              style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-            >
-              <HireIcon size={14} />
-              Hire Me
-            </a>
-          ) : (
-            <Link
-              href={hireMeLink}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
-              style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
-            >
-              <HireIcon size={14} />
-              Hire Me
-            </Link>
-          )}
+          {/* Hire Me + Admin Edit Profile button */}
+          <div className="flex items-center gap-2">
+            {isExternal ? (
+              <a
+                href={hireMeLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
+                style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+              >
+                <HireIcon size={14} />
+                Hire Me
+              </a>
+            ) : (
+              <Link
+                href={hireMeLink}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
+                style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
+              >
+                <HireIcon size={14} />
+                Hire Me
+              </Link>
+            )}
+
+            {/* Admin: Main Edit Profile pencil button */}
+            {isAdmin && (
+              <button
+                onClick={onEditProfile}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border border-border bg-card hover:bg-muted transition-all active:scale-95 shadow-sm text-foreground"
+                title="Edit profile"
+              >
+                <Pencil size={13} style={{ color: '#f4a295' }} />
+                Edit
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Name + Title */}
         <h1 className="font-bold text-xl text-foreground leading-tight">{name}</h1>
-        <p className="text-sm text-muted-foreground mb-2">
-          {title}
-        </p>
+        <p className="text-sm text-muted-foreground mb-2">{title}</p>
 
         {/* Bio */}
         <p className="text-sm text-foreground leading-relaxed mb-3 whitespace-pre-wrap">
@@ -183,7 +233,7 @@ export function ProfileHero({
           </span>
         </p>
 
-        {/* Meta Row (Location & Join Date) */}
+        {/* Meta Row */}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mb-1">
           {location && (
             <span className="flex items-center gap-1">
@@ -199,7 +249,6 @@ export function ProfileHero({
           )}
         </div>
 
-        {/* 🟢 Dynamic Email Link */}
         {email && (
           <div className="mb-4">
             <a
