@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X, Save, Loader2, User, Hash, Calendar, BarChart2,
-  MapPin, Phone, ChevronDown, ChevronUp, CheckCircle2,
+  MapPin, Phone, ChevronDown, ChevronUp, CheckCircle2, MousePointerClick,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SiteSettings } from '@/lib/types'
@@ -80,6 +80,7 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
     status: true,
     location: true,
     contact: true,
+    button: true,
   })
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -132,6 +133,14 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
     const country = form.hero.country.trim()
     const location = [city, country].filter(Boolean).join(', ')
 
+    // Append + to stat values that are plain numbers
+    const normalizedStats = form.hero.stats.map(s => ({
+      ...s,
+      value: s.value && !s.value.includes('+') && /^\d+$/.test(s.value.trim())
+        ? `${s.value.trim()}+`
+        : s.value,
+    }))
+
     const payload: SiteSettings = {
       ...form,
       hero: {
@@ -144,6 +153,7 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
         city,
         country,
         location,
+        stats: normalizedStats,
       },
       contact: { ...form.contact, address: location || form.contact.address },
     }
@@ -281,12 +291,29 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
           <SectionHeader icon={Calendar} label="Joined Date" accent="#a8d5c2" open={openSections.joined} onToggle={() => toggleSection('joined')} />
           {openSections.joined && (
             <div className="pt-4 pb-5">
-              <Field label="Join Date" hint='Displayed as free text, e.g. "Joined March 2022".'>
+              <Field label="Join Date" hint='Pick a date — displayed as "Joined Month YYYY" on the profile.'>
                 <input
+                  type="date"
                   className={inputCls}
-                  value={form.hero.joinDate}
-                  onChange={e => setHero('joinDate', e.target.value)}
-                  placeholder="Joined March 2022"
+                  value={(() => {
+                    // Convert stored "Joined March 2022" → YYYY-MM-DD for the input
+                    const raw = form.hero.joinDate
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+                    const parsed = new Date(raw.replace('Joined ', ''))
+                    if (!isNaN(parsed.getTime())) {
+                      return parsed.toISOString().split('T')[0]
+                    }
+                    return ''
+                  })()}
+                  onChange={e => {
+                    const d = new Date(e.target.value)
+                    if (!isNaN(d.getTime())) {
+                      const formatted = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                      setHero('joinDate', `Joined ${formatted}`)
+                    } else {
+                      setHero('joinDate', e.target.value)
+                    }
+                  }}
                 />
               </Field>
             </div>
@@ -296,6 +323,7 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
           <SectionHeader icon={BarChart2} label="Current Status" open={openSections.status} onToggle={() => toggleSection('status')} />
           {openSections.status && (
             <div className="pt-4 pb-5 grid grid-cols-1 gap-3">
+              <p className="text-[11px] text-muted-foreground -mt-1">Enter numbers only — a <span className="text-foreground font-semibold">+</span> sign is appended automatically on the public profile.</p>
               {(form.hero.stats.length > 0 ? form.hero.stats : [
                 { value: '', label: 'Projects' },
                 { value: '', label: 'Clients' },
@@ -305,10 +333,13 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
                   <div className="flex-1 min-w-0">
                     <p className={labelCls}>{statsLabels[i] ?? stat.label}</p>
                     <input
+                      type="number"
+                      min={0}
                       className={cn(inputCls, 'mt-0')}
-                      value={stat.value}
+                      // Strip any trailing + for the number input display
+                      value={stat.value.replace(/\+$/, '')}
                       onChange={e => setStatField(i, 'value', e.target.value)}
-                      placeholder={i === 0 ? '50+' : i === 1 ? '40+' : '4+'}
+                      placeholder={i === 0 ? '50' : i === 1 ? '40' : '4'}
                     />
                   </div>
                 </div>
@@ -385,6 +416,30 @@ export function EditProfileModal({ isOpen, onClose, settings, onSaved }: EditPro
                   value={form.contact.contactSubHeading}
                   onChange={e => setContact('contactSubHeading', e.target.value)}
                   placeholder="Let's build something great together…"
+                />
+              </Field>
+            </div>
+          )}
+
+          {/* ── Profile Button ── */}
+          <SectionHeader icon={MousePointerClick} label="Profile Button" accent="#f4a295" open={openSections.button} onToggle={() => toggleSection('button')} />
+          {openSections.button && (
+            <div className="pt-4 pb-6 grid grid-cols-1 gap-3">
+              <p className="text-[11px] text-muted-foreground -mt-1">This button appears prominently on your public profile. Leave blank to hide it.</p>
+              <Field label="Button Text">
+                <input
+                  className={inputCls}
+                  value={form.hero.profileButtonText ?? ''}
+                  onChange={e => setHero('profileButtonText', e.target.value)}
+                  placeholder="Hire Me"
+                />
+              </Field>
+              <Field label="Button Link / URL" hint="Use a full URL (https://…), mailto:, or an internal path like /contact.">
+                <input
+                  className={inputCls}
+                  value={form.hero.profileButtonLink ?? ''}
+                  onChange={e => setHero('profileButtonLink', e.target.value)}
+                  placeholder="/contact  or  https://wa.me/…"
                 />
               </Field>
             </div>

@@ -70,6 +70,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
       { value: '4+', label: 'Years' },
     ],
     hireMeLink: '/contact',
+    profileButtonText: 'Hire Me',
+    profileButtonLink: '/contact',
   },
   about: { media: [], introText: '', timeline: [], stack: [], values: [] },
   contact: { email: '', phone: '', whatsapp: '', address: '', shortText: '', contactHeading: '', contactSubHeading: '', socials: [] },

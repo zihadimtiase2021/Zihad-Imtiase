@@ -13,6 +13,9 @@ const TABS = [
 export interface HeroData {
   coverMedia?: string
   profileMedia?: string
+  firstName?: string
+  lastName?: string
+  nickname?: string
   name?: string
   title?: string
   bio?: string
@@ -21,6 +24,8 @@ export interface HeroData {
   joinDate?: string
   stats?: { value: string; label: string }[]
   hireMeLink?: string
+  profileButtonText?: string
+  profileButtonLink?: string
 }
 
 export interface ContactData {
@@ -92,24 +97,39 @@ export function ProfileHero({
 }: ProfileHeroProps) {
   const coverMedia = heroData.coverMedia || ''
   const profileMedia = heroData.profileMedia || ''
+  const firstName = heroData.firstName || ''
+  const lastName = heroData.lastName || ''
+  const nickname = heroData.nickname || ''
   const name = heroData.name || 'Zihad Imtiase'
+  // Build display name: "First Last (Nickname)" if nickname exists
+  const displayName = (() => {
+    const base = [firstName, lastName].filter(Boolean).join(' ') || name
+    return nickname ? `${base} (${nickname})` : base
+  })()
   const title = heroData.title || 'Frontend Developer & Webflow Specialist'
   const bio = heroData.bio || 'Crafting websites that drive engagement, conversions & success.'
   const tags = heroData.tags?.length ? heroData.tags : ['#frontend', '#webflow', '#react', '#landingpage', '#CRO']
   const location = heroData.location || 'Dhaka Cantonment, Bangladesh'
   const joinDate = heroData.joinDate || 'Joined March 2022'
-  const stats = heroData.stats?.length ? heroData.stats : [
+  const rawStats = heroData.stats?.length ? heroData.stats : [
     { value: '50+', label: 'Projects' },
     { value: '40+', label: 'Clients' },
     { value: '4+', label: 'Years' },
   ]
+  // Auto-append + to pure numeric values
+  const stats = rawStats.map(s => ({
+    ...s,
+    value: /^\d+$/.test(s.value.trim()) ? `${s.value.trim()}+` : s.value,
+  }))
   const email = contactData.email || ''
 
-  const hireMeLink = heroData.hireMeLink || '/contact'
-  const isMail = hireMeLink.startsWith('mailto:')
-  const isWhatsApp = hireMeLink.includes('wa.me') || hireMeLink.includes('whatsapp')
-  const HireIcon = isMail ? Mail : isWhatsApp ? MessageCircle : Briefcase
-  const isExternal = hireMeLink.startsWith('http') || hireMeLink.startsWith('mailto:')
+  // Dynamic profile button
+  const btnText = heroData.profileButtonText?.trim() || 'Hire Me'
+  const btnLink = heroData.profileButtonLink?.trim() || heroData.hireMeLink || '/contact'
+  const isBtnMail = btnLink.startsWith('mailto:')
+  const isBtnWhatsApp = btnLink.includes('wa.me') || btnLink.includes('whatsapp')
+  const BtnIcon = isBtnMail ? Mail : isBtnWhatsApp ? MessageCircle : Briefcase
+  const isBtnExternal = btnLink.startsWith('http') || btnLink.startsWith('mailto:')
 
   return (
     <div className="border-b border-border">
@@ -138,13 +158,16 @@ export function ProfileHero({
 
         {/* Admin: Cover edit controls */}
         {isAdmin && (
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+          <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1.5">
             <EditChip
               onPickMedia={(url) => onCoverChange?.(url)}
               onDelete={() => onCoverDelete?.()}
               hasMedia={!!coverMedia}
               label="cover"
             />
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-background/80 backdrop-blur border border-border text-muted-foreground leading-tight whitespace-nowrap">
+              Recommended: 16:9 &bull; 1500&times;500px
+            </span>
           </div>
         )}
       </div>
@@ -155,13 +178,13 @@ export function ProfileHero({
           <div className="relative">
             {profileMedia ? (
               isVideo(profileMedia) ? (
-                <video src={profileMedia} autoPlay muted loop playsInline className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm" />
+                <video src={profileMedia} autoPlay muted loop playsInline className="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-background object-cover shadow-md" />
               ) : (
-                <img src={profileMedia} alt={name} className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background object-cover shadow-sm" />
+                <img src={profileMedia} alt={displayName} className="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-background object-cover shadow-md" />
               )
             ) : (
               <div
-                className="w-16 h-16 md:w-[72px] md:h-[72px] rounded-full border-4 border-background flex items-center justify-center font-bold text-xl shadow-sm uppercase"
+                className="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-background flex items-center justify-center font-bold text-2xl shadow-md uppercase"
                 style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
               >
                 {name.slice(0, 2)}
@@ -179,29 +202,29 @@ export function ProfileHero({
             )}
           </div>
 
-          {/* Hire Me + Admin Edit Profile button */}
+          {/* Profile Button + Admin Edit Profile button */}
           <div className="flex items-center gap-2">
-            {isExternal ? (
+            {btnText && (isBtnExternal ? (
               <a
-                href={hireMeLink}
+                href={btnLink}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
                 style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
               >
-                <HireIcon size={14} />
-                Hire Me
+                <BtnIcon size={14} />
+                {btnText}
               </a>
             ) : (
               <Link
-                href={hireMeLink}
+                href={btnLink}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm"
                 style={{ backgroundColor: '#f4a295', color: '#1a1a1a' }}
               >
-                <HireIcon size={14} />
-                Hire Me
+                <BtnIcon size={14} />
+                {btnText}
               </Link>
-            )}
+            ))}
 
             {/* Admin: Main Edit Profile pencil button */}
             {isAdmin && (
@@ -218,7 +241,7 @@ export function ProfileHero({
         </div>
 
         {/* Name + Title */}
-        <h1 className="font-bold text-xl text-foreground leading-tight">{name}</h1>
+        <h1 className="font-bold text-xl text-foreground leading-tight">{displayName}</h1>
         <p className="text-sm text-muted-foreground mb-2">{title}</p>
 
         {/* Bio */}

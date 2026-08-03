@@ -105,6 +105,8 @@ export interface HeroSettings {
   joinDate: string
   stats: { value: string; label: string }[]
   hireMeLink: string
+  profileButtonText: string
+  profileButtonLink: string
 }
 
 export interface AboutSettings {

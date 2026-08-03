@@ -30,6 +30,9 @@ export function HomeClient({ initialItems, heroData, contactData = {}, initialSe
   const liveHeroData: HeroData = {
     coverMedia: liveSettings.hero.coverMedia,
     profileMedia: liveSettings.hero.profileMedia,
+    firstName: liveSettings.hero.firstName,
+    lastName: liveSettings.hero.lastName,
+    nickname: liveSettings.hero.nickname,
     name: liveSettings.hero.name,
     title: liveSettings.hero.title,
     bio: liveSettings.hero.bio,
@@ -38,6 +41,8 @@ export function HomeClient({ initialItems, heroData, contactData = {}, initialSe
     joinDate: liveSettings.hero.joinDate,
     stats: liveSettings.hero.stats,
     hireMeLink: liveSettings.hero.hireMeLink,
+    profileButtonText: liveSettings.hero.profileButtonText,
+    profileButtonLink: liveSettings.hero.profileButtonLink,
   }
   const liveContactData: ContactData = {
     email: liveSettings.contact.email,
