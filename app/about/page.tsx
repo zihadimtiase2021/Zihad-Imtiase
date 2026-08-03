@@ -1,9 +1,46 @@
+import type { Metadata } from 'next'
 import { PageShell } from '@/components/page-shell'
 import { MapPin, Calendar, GraduationCap, Camera, Code2, Globe, Zap, Layout, Monitor } from 'lucide-react'
 import { readSettingsData } from '@/lib/data'
+import { JsonLd } from '@/components/json-ld'
+import {
+  breadcrumbSchema,
+  buildMetadata,
+  jsonLdGraph,
+  profilePageSchema,
+  toDescription,
+} from '@/lib/seo'
 
-// এই লাইনটি Next.js কে ক্যাশ করতে নিষেধ করবে (Real-time updates)
-export const dynamic = 'force-dynamic'
+// Revalidate instead of force-dynamic: crawlers get a fast cached response
+// and content still refreshes automatically within a minute.
+export const revalidate = 60
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await readSettingsData()
+  const hero = settings?.hero
+  const name = hero?.name || 'Zihad Imtiase'
+  const jobTitle = hero?.title || 'Frontend Developer & Webflow Specialist'
+
+  const description =
+    toDescription(settings?.about?.introText) ||
+    toDescription(hero?.bio) ||
+    `Learn about ${name}, a ${jobTitle} based in ${hero?.location || 'Dhaka, Bangladesh'}.`
+
+  return buildMetadata({
+    title: `About ${name}`,
+    description,
+    path: '/about',
+    type: 'profile',
+    images: [settings?.about?.media?.[0], hero?.profileMedia],
+    keywords: [
+      'about',
+      name,
+      jobTitle,
+      ...(settings?.about?.stack ?? []).map((s) => s.name),
+    ],
+    authors: [name],
+  })
+}
 
 function getStackIcon(name: string) {
   const n = name.toLowerCase();
@@ -31,11 +68,30 @@ export default async function AboutPage() {
   const stack = siteSettings?.about?.stack?.length ? siteSettings.about.stack : []
   const values = siteSettings?.about?.values?.length ? siteSettings.about.values : []
 
+  const displayName = siteSettings?.hero?.name || 'Zihad Imtiase'
+  const jobTitle = siteSettings?.hero?.title || 'Frontend Developer & Webflow Specialist'
+  const pageDescription =
+    toDescription(introText) || `Learn about ${displayName}, a ${jobTitle}.`
+
+  const graph = jsonLdGraph(
+    profilePageSchema({
+      settings: siteSettings,
+      path: '/about',
+      title: `About ${displayName}`,
+      description: pageDescription,
+    }),
+    breadcrumbSchema([
+      { name: 'Home', path: '/' },
+      { name: 'About', path: '/about' },
+    ]),
+  )
+
   return (
     <PageShell>
+      <JsonLd data={graph} />
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b border-border px-4 py-3">
-        <h1 className="font-bold text-lg text-foreground">About</h1>
-        <p className="text-xs text-muted-foreground">{siteSettings?.hero?.name || 'Zihad Imtiase'}</p>
+        <h1 className="font-bold text-lg text-foreground">About {displayName}</h1>
+        <p className="text-xs text-muted-foreground">{jobTitle}</p>
       </div>
 
       <div className="border-b border-border">
@@ -46,7 +102,15 @@ export default async function AboutPage() {
               {isVideo(primaryMedia) ? (
                 <video src={primaryMedia} autoPlay muted loop playsInline className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
               ) : (
-                <img src={primaryMedia} alt="About" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                <img
+                  src={primaryMedia}
+                  alt={`${displayName}, ${jobTitle}`}
+                  width={640}
+                  height={896}
+                  fetchPriority="high"
+                  decoding="async"
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
               )}
               <div className="absolute inset-0 rounded-[2rem] ring-1 ring-inset ring-white/10 pointer-events-none z-20" />
             </div>
@@ -63,21 +127,31 @@ export default async function AboutPage() {
           <div className="flex gap-3 px-5 pb-2 -mt-14 relative z-30 overflow-x-auto scrollbar-none">
             {extraMedia.map((url, i) => (
               <div key={url + i} className="shrink-0 rounded-2xl overflow-hidden border-[4px] border-background bg-muted shadow-md hover:-translate-y-1 transition-transform duration-300" style={{ width: 72, height: 72 }}>
-                {isVideo(url) ? <video src={url} muted autoPlay loop playsInline className="w-full h-full object-cover" /> : <img src={url} alt="" className="w-full h-full object-cover" />}
+                {isVideo(url) ? (
+                  <video src={url} muted autoPlay loop playsInline className="w-full h-full object-cover" aria-label={`${displayName} — work highlight video ${i + 2}`} />
+                ) : (
+                  <img
+                    src={url}
+                    alt={`${displayName} — work highlight ${i + 2}`}
+                    width={72}
+                    height={72}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
             ))}
           </div>
         )}
 
         <div className="px-5 pb-6">
-          <h2 className="font-bold text-2xl text-foreground tracking-tight">{siteSettings?.hero?.name || 'Zihad Imtiase'}</h2>
-          <p className="text-sm font-medium mt-1 text-muted-foreground">
-            {siteSettings?.hero?.title || 'Frontend Developer & Webflow Specialist'}
-          </p>
+          <h2 className="font-bold text-2xl text-foreground tracking-tight">{displayName}</h2>
+          <p className="text-sm font-medium mt-1 text-muted-foreground">{jobTitle}</p>
         </div>
       </div>
 
-      <div className="px-5 py-6 border-b border-border">
+      <section aria-label={`Introduction from ${displayName}`} className="px-5 py-6 border-b border-border">
         {introText.split('\n').map((paragraph: string, idx: number) => (
           <p key={idx} className="text-sm text-foreground leading-relaxed mb-4 last:mb-0 whitespace-pre-wrap">{paragraph}</p>
         ))}
@@ -87,11 +161,11 @@ export default async function AboutPage() {
           <span className="flex items-center gap-1.5"><Calendar size={12} style={{ color: '#f4a295' }} /> {joinDate}</span>
           <span className="flex items-center gap-1.5"><GraduationCap size={12} style={{ color: '#f4a295' }} /> Professional</span>
         </div>
-      </div>
+      </section>
 
       {values.length > 0 && (
-        <div className="px-5 py-6 border-b border-border">
-          <h2 className="font-bold text-base text-foreground mb-4">How I work</h2>
+        <section aria-labelledby="about-values" className="px-5 py-6 border-b border-border">
+          <h2 id="about-values" className="font-bold text-base text-foreground mb-4">How I work</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {values.map((v: any, i: number) => (
               <div key={i} className="p-4 rounded-2xl border border-border bg-card hover:border-[#f4a295]/40 transition-colors">
@@ -100,12 +174,12 @@ export default async function AboutPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {stack.length > 0 && (
-        <div className="px-5 py-6 border-b border-border">
-          <h2 className="font-bold text-base text-foreground mb-4">Tech stack</h2>
+        <section aria-labelledby="about-stack" className="px-5 py-6 border-b border-border">
+          <h2 id="about-stack" className="font-bold text-base text-foreground mb-4">Tech stack</h2>
           <div className="flex flex-col gap-3">
             {stack.map(({ name, level }: any, i: number) => (
               <div key={i}>
@@ -122,12 +196,12 @@ export default async function AboutPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {timeline.length > 0 && (
-        <div className="px-5 py-6">
-          <h2 className="font-bold text-base text-foreground mb-5">Journey</h2>
+        <section aria-labelledby="about-journey" className="px-5 py-6">
+          <h2 id="about-journey" className="font-bold text-base text-foreground mb-5">Journey</h2>
           <div className="relative flex flex-col gap-0">
             {timeline.map((item: any, i: number) => (
               <div key={i} className="flex gap-4">
@@ -146,7 +220,7 @@ export default async function AboutPage() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </PageShell>
   )
