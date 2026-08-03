@@ -35,7 +35,7 @@ async function resolveToAddress(db: Awaited<ReturnType<typeof getDb>>): Promise<
   } catch {
     // fall through
   }
-  return process.env.RESEND_TO_EMAIL ?? process.env.ADMIN_USERNAME ?? ''
+  return process.env.RESEND_TO_EMAIL ?? process.env.ADMIN_USERNAME ?? 'zdimtiase@gmail.com'
 }
 
 // ---------------------------------------------------------------------------
