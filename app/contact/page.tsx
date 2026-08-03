@@ -9,12 +9,15 @@ export const dynamic = 'force-dynamic'
 export default async function ContactPage() {
   const siteSettings = (await readSettingsData()) as any
   
-  const contactData = siteSettings?.contact || {
-    email: '',
-    phone: '',
-    address: '',
-    shortText: '',
-    socials: []
+  const contactData = {
+    email: siteSettings?.contact?.email || '',
+    phone: siteSettings?.contact?.phone || '',
+    whatsapp: siteSettings?.contact?.whatsapp || '',
+    address: siteSettings?.contact?.address || '',
+    shortText: siteSettings?.contact?.shortText || '',
+    contactHeading: siteSettings?.contact?.contactHeading || '',
+    contactSubHeading: siteSettings?.contact?.contactSubHeading || '',
+    socials: Array.isArray(siteSettings?.contact?.socials) ? siteSettings.contact.socials : [],
   }
 
   return (

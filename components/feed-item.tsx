@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Share2, BookOpen, Quote, Briefcase, TrendingUp, ExternalLink, Music, MoreHorizontal, Edit, Trash2, Pin, Loader2 } from 'lucide-react'
+import { Share2, BookOpen, Quote, Briefcase, ExternalLink, Music, MoreHorizontal, Edit, Trash2, Pin, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PostInteractions } from '@/components/post-interactions'
 import { deleteFeedItem, updateFeedItem } from '@/lib/data-actions'
@@ -191,8 +191,18 @@ export function FeedItem({
         {allMedia.length > 0 && <div className="mb-3"><MediaGrid urls={allMedia} onClick={(e) => e.preventDefault()} /></div>}
         
         {projectTech.length > 0 && <div className="flex flex-wrap gap-1.5 mb-3">{projectTech.map((tech) => (<span key={tech} className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-muted text-muted-foreground">{tech}</span>))}</div>}
-        {projectLink && <a href={projectLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-medium mb-3 transition-colors hover:opacity-80" style={{ color: '#f4a295' }} onClick={(e) => e.stopPropagation()}><ExternalLink size={11} /> View project</a>}
-        {linkedProjectId && <Link href={`/portfolio/${linkedProjectId}`} className="flex items-center gap-2 mb-3 px-3 py-2 rounded-xl border border-border bg-muted/50 hover:border-[#f4a295]/50 transition-colors group" onClick={(e) => e.stopPropagation()}><TrendingUp size={13} style={{ color: '#f4a295' }} className="shrink-0" /><span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">View full project details</span><span className="ml-auto text-xs font-semibold" style={{ color: '#f4a295' }}>→</span></Link>}
+        {projectLink && (
+          <a
+            href={linkedProjectId ? `/portfolio/${linkedProjectId}` : projectLink}
+            target={linkedProjectId ? undefined : '_blank'}
+            rel={linkedProjectId ? undefined : 'noopener noreferrer'}
+            className="inline-flex items-center gap-1 text-xs font-medium mb-3 transition-colors hover:opacity-80"
+            style={{ color: '#f4a295' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink size={11} /> View project details
+          </a>
+        )}
 
         <div className="relative cursor-default mt-1" onClick={(e) => e.stopPropagation()}>
           <div className="absolute top-4 right-0 flex items-center gap-5 pt-3 z-10 bg-background pl-2">

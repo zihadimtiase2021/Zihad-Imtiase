@@ -1,27 +1,71 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useCallback } from 'react'
 import { PageShell } from '@/components/page-shell'
 import { ProfileHero, type HeroData, type ContactData } from '@/components/profile-hero'
 import { FeedItem } from '@/components/feed-item'
+import { useAdminStatus } from '@/hooks/use-admin-status'
 import type { FeedItem as FeedItemType } from '@/lib/data'
+import type { SiteSettings } from '@/lib/types'
 
 interface HomeClientProps {
   initialItems: FeedItemType[]
   heroData: HeroData
   contactData?: ContactData
+  initialSettings: SiteSettings
 }
 
-export function HomeClient({ initialItems, heroData, contactData = {} }: HomeClientProps) {
+export function HomeClient({ initialItems, heroData, contactData = {}, initialSettings }: HomeClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const isAdmin = useAdminStatus()
 
-  // ?cat= drives the top-level tab (all | testimonials | projects)
-  // ?sub= drives the project sub-category filter (only active when cat=projects)
+  // Live settings state — drives real-time UI updates on save
+  const [liveSettings, setLiveSettings] = useState<SiteSettings>(initialSettings)
+
+  // Derive HeroData + ContactData from live settings
+  const liveHeroData: HeroData = {
+    coverMedia: liveSettings.hero.coverMedia,
+    profileMedia: liveSettings.hero.profileMedia,
+    firstName: liveSettings.hero.firstName,
+    lastName: liveSettings.hero.lastName,
+    nickname: liveSettings.hero.nickname,
+    name: liveSettings.hero.name,
+    title: liveSettings.hero.title,
+    bio: liveSettings.hero.bio,
+    tags: liveSettings.hero.tags,
+    location: liveSettings.hero.location,
+    joinDate: liveSettings.hero.joinDate,
+    stats: liveSettings.hero.stats,
+    hireMeLink: liveSettings.hero.hireMeLink,
+    profileButtonText: liveSettings.hero.profileButtonText,
+    profileButtonLink: liveSettings.hero.profileButtonLink,
+  }
+  const liveContactData: ContactData = {
+    email: liveSettings.contact.email,
+  }
+
+  // ── Media save helper ──────────────────────────────────────────────────────
+  const persistMediaField = useCallback(async (
+    patch: Partial<SiteSettings['hero']>
+  ) => {
+    const updated: SiteSettings = {
+      ...liveSettings,
+      hero: { ...liveSettings.hero, ...patch },
+    }
+    setLiveSettings(updated)
+    await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updated),
+    })
+  }, [liveSettings])
+
+  // ── Tab routing ────────────────────────────────────────────────────────────
   const activeFilter = searchParams.get('cat') ?? 'all'
   const activeSub = searchParams.get('sub') ?? 'all'
 
-  // Determine items shown in the current tab
   const tabItems = (() => {
     let filtered: FeedItemType[]
     if (activeFilter === 'all') {
@@ -33,7 +77,6 @@ export function HomeClient({ initialItems, heroData, contactData = {} }: HomeCli
     } else {
       filtered = initialItems.filter((item) => item.category === activeFilter)
     }
-    // Pinned posts always appear first
     return [...filtered].sort((a, b) => {
       if (a.pinned && !b.pinned) return -1
       if (!a.pinned && b.pinned) return 1
@@ -41,20 +84,15 @@ export function HomeClient({ initialItems, heroData, contactData = {} }: HomeCli
     })
   })()
 
-  // Sub-category chips — only shown in Projects tab
   const projectSubCategories = (() => {
     if (activeFilter !== 'projects') return []
     const cats = new Set<string>()
     tabItems.forEach((item) => {
-      // linkedProjectId items carry the portfolio category in their category field value
-      // We derive sub-cats from the category field (e.g. 'development', 'webflow', etc.)
-      // excluding the generic 'projects' bucket itself
       if (item.category && item.category !== 'projects') cats.add(item.category)
     })
     return Array.from(cats)
   })()
 
-  // Apply sub-category filter on top of the projects tab
   const filteredItems = (() => {
     if (activeFilter !== 'projects' || activeSub === 'all') return tabItems
     return tabItems.filter((item) => item.category === activeSub)
@@ -87,8 +125,14 @@ export function HomeClient({ initialItems, heroData, contactData = {} }: HomeCli
       <ProfileHero
         activeFilter={activeFilter}
         onFilterChange={handleFilterChange}
-        heroData={heroData}
-        contactData={contactData}
+        heroData={liveHeroData}
+        contactData={liveContactData}
+        isAdmin={isAdmin}
+        onCoverChange={(url) => persistMediaField({ coverMedia: url })}
+        onCoverDelete={() => persistMediaField({ coverMedia: '' })}
+        onAvatarChange={(url) => persistMediaField({ profileMedia: url })}
+        onAvatarDelete={() => persistMediaField({ profileMedia: '' })}
+        onEditProfile={() => router.push('/admin/edit-profile')}
       />
 
       {/* Project sub-category filter strip */}
@@ -147,6 +191,8 @@ export function HomeClient({ initialItems, heroData, contactData = {} }: HomeCli
           ))
         )}
       </section>
+
+
     </PageShell>
   )
 }

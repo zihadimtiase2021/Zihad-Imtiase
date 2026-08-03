@@ -18,8 +18,11 @@ type FormState = 'idle' | 'sending' | 'sent' | 'error'
 interface ContactData {
   email: string
   phone: string
+  whatsapp?: string
   address: string
   shortText: string
+  contactHeading?: string
+  contactSubHeading?: string
   socials: { platform: string; url: string }[]
 }
 
@@ -30,12 +33,13 @@ export function ContactClient({ contactData }: { contactData: ContactData }) {
   const formRef = useRef<HTMLFormElement>(null)
 
   // ডায়নামিক কন্ট্যাক্ট অপশন
+  const waNumber = contactData.whatsapp || contactData.phone
   const CONTACT_OPTIONS = [
     {
       icon: MessageSquare,
       label: 'WhatsApp / Phone',
-      value: contactData.phone || '+880...',
-      href: contactData.phone ? `https://wa.me/${contactData.phone.replace(/[\s-]/g, '')}` : null,
+      value: contactData.whatsapp || contactData.phone || '+880...',
+      href: waNumber ? `https://wa.me/${waNumber.replace(/[\s\-+]/g, '')}` : null,
     },
     {
       icon: Mail,
@@ -95,8 +99,11 @@ export function ContactClient({ contactData }: { contactData: ContactData }) {
       {/* Intro */}
       <div className="px-5 py-6 border-b border-border">
         <h2 className="font-bold text-xl text-foreground mb-2 text-pretty">
-          Got a project in mind?
+          {contactData.contactHeading || 'Got a project in mind?'}
         </h2>
+        {contactData.contactSubHeading && (
+          <p className="text-sm font-medium text-muted-foreground mb-2 whitespace-pre-wrap">{contactData.contactSubHeading}</p>
+        )}
         <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
           {contactData.shortText || "I am currently available for freelance work. Drop me a message and I will get back to you within 24 hours."}
         </p>

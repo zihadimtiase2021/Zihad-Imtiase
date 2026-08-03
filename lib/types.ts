@@ -90,14 +90,23 @@ export interface SocialItem {
 export interface HeroSettings {
   coverMedia: string
   profileMedia: string
+  // Composite name fields — firstName + lastName populate `name`
+  firstName: string
+  lastName: string
+  nickname: string
   name: string
   title: string
   bio: string
   tags: string[]
+  // Location split
+  country: string
+  city: string
   location: string
   joinDate: string
   stats: { value: string; label: string }[]
   hireMeLink: string
+  profileButtonText: string
+  profileButtonLink: string
 }
 
 export interface AboutSettings {
@@ -111,8 +120,11 @@ export interface AboutSettings {
 export interface ContactSettings {
   email: string
   phone: string
+  whatsapp: string
   address: string
   shortText: string
+  contactHeading: string
+  contactSubHeading: string
   socials: SocialItem[]
 }
 
