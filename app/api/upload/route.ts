@@ -1,14 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { v2 as cloudinary, UploadApiOptions } from 'cloudinary'
 import { isAuthenticated } from '@/lib/auth'
+import { uploadToCloudinary, optimizeUrl, type UploadEntityType } from '@/lib/cloudinary'
 
 export const dynamic = 'force-dynamic'
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-})
 
 export async function POST(request: NextRequest) {
   if (!(await isAuthenticated(request))) {
@@ -17,42 +11,45 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData()
-    const file = formData.get('file') as File
-    const targetFormat = formData.get('format') as string // 'webp' | 'avif' | 'original'
+    const file = formData.get('file') as File | null
+    const entityType = (formData.get('entityType') as UploadEntityType) || 'feed-media'
+    const identifier = (formData.get('identifier') as string | null) || undefined
+    const format = (formData.get('format') as string | null) || 'original'
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
-    const bytes = await file.arrayBuffer()
-    const buffer = Buffer.from(bytes)
-    
-    // Check if the uploaded file is an image
-    const isImage = file.type.startsWith('image/')
-
-    const uploadOptions: UploadApiOptions = {
-      folder: 'zihad_portfolio_media',
-      resource_type: 'auto',
+    // Validate file type
+    const supportedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm', 'audio/mpeg']
+    if (!supportedMimes.includes(file.type)) {
+      return NextResponse.json({ error: `Unsupported file type: ${file.type}` }, { status: 400 })
     }
 
-    // Apply format conversion and quality compression ONLY if it's an image
-    // and user didn't select 'original'
-    if (isImage && targetFormat && targetFormat !== 'original') {
-      uploadOptions.format = targetFormat
-      uploadOptions.quality = 'auto' // Cloudinary intelligent compression
+    // Validate file size (100MB max)
+    if (file.size > 100 * 1024 * 1024) {
+      return NextResponse.json({ error: 'File too large (max 100MB)' }, { status: 400 })
     }
 
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
-        if (error) reject(error)
-        else resolve(result)
-      })
-      stream.end(buffer)
+    const buffer = Buffer.from(await file.arrayBuffer())
+
+    // Use the centralized upload utility with duplicate prevention & organization
+    const result = await uploadToCloudinary(buffer, file.name, file.type, {
+      entityType,
+      identifier,
+      format: format as 'webp' | 'avif' | 'original',
+      overwrite: true, // Prevent duplicates by reusing the same public_id
     })
 
-    return NextResponse.json({ success: true, url: (result as any).secure_url })
+    return NextResponse.json({
+      success: true,
+      url: result.optimizedUrl, // Always return the optimized URL with f_auto,q_auto
+      secure_url: result.secure_url,
+      public_id: result.public_id,
+    })
   } catch (error) {
     console.error('[Upload API Error]', error)
-    return NextResponse.json({ error: 'Failed to upload' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Failed to upload'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
