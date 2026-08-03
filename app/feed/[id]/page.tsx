@@ -2,6 +2,15 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { readFeedData, readPortfolioData } from '@/lib/data'
 import { FeedDetailClient } from '@/components/feed-detail-client'
+import { JsonLd } from '@/components/json-ld'
+import {
+  blogPostingSchema,
+  breadcrumbSchema,
+  buildMetadata,
+  jsonLdGraph,
+  reviewSchema,
+  toDescription,
+} from '@/lib/seo'
 import type { FeedItem, Project } from '@/lib/types'
 
 // Allow Next.js router cache to serve this page without re-fetching
@@ -21,23 +30,30 @@ export async function generateMetadata({
   const { id } = await params
   const data = await readFeedData()
   const item = data.items.find((i) => i.id === id)
-  if (!item) return { title: 'Post not found' }
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://zihadimtiase.com'
-  return {
-    title: item.title,
-    description: item.excerpt,
-    openGraph: {
-      title: item.title,
-      description: item.excerpt,
-      url: `${base}/feed/${id}`,
-      ...(item.image ? { images: [{ url: item.image }] } : {}),
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: item.title,
-      description: item.excerpt,
-    },
+
+  if (!item) {
+    return buildMetadata({
+      title: 'Post not found',
+      description: 'The requested post could not be found.',
+      path: `/feed/${id}`,
+      noIndex: true,
+    })
   }
+
+  const description =
+    toDescription(item.excerpt) || toDescription(item.content) || item.title
+
+  return buildMetadata({
+    title: item.title,
+    description,
+    path: `/feed/${id}`,
+    type: 'article',
+    images: [item.image, ...(item.media ?? [])],
+    publishedTime: item.date,
+    modifiedTime: item.date,
+    keywords: [item.category, ...(item.tech ?? [])].filter(Boolean),
+    authors: [item.author || 'Zihad Imtiase'],
+  })
 }
 
 export default async function FeedDetailPage({
@@ -69,11 +85,30 @@ export default async function FeedDetailPage({
     }
   }
 
+  // Testimonials get Review schema (rich-result eligible), everything else is
+  // treated as an editorial BlogPosting.
+  const primary =
+    item.type === 'testimonial'
+      ? reviewSchema(item)
+      : blogPostingSchema(item, item.author || 'Zihad Imtiase')
+
+  const graph = jsonLdGraph(
+    primary,
+    breadcrumbSchema([
+      { name: 'Home', path: '/' },
+      { name: item.category || 'Feed', path: `/feed/category/${item.category || 'all'}` },
+      { name: item.title, path: `/feed/${item.id}` },
+    ]),
+  )
+
   return (
-    <FeedDetailClient
-      initialItem={item}
-      initialLinkedProject={linkedProject}
-      initialRelatedProjects={relatedProjects}
-    />
+    <>
+      <JsonLd data={graph} />
+      <FeedDetailClient
+        initialItem={item}
+        initialLinkedProject={linkedProject}
+        initialRelatedProjects={relatedProjects}
+      />
+    </>
   )
 }

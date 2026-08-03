@@ -1,44 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Code, TrendingUp, CheckCircle2, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PageShell } from '@/components/page-shell'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-
-interface ContentBlock {
-  id: string
-  type: 'paragraph' | 'heading' | 'image' | 'divider'
-  text?: string
-  url?: string
-  caption?: string
-}
-
-interface Project {
-  id: string
-  title: string
-  category: string
-  description: string
-  tech: string[]
-  results: Record<string, string>
-  link?: string
-  github?: string
-  image?: string
-  images?: string[]
-  content?: ContentBlock[]
-  featured: boolean
-}
+import type { Project } from '@/lib/types'
 
 /** Full-screen lightbox for gallery images */
 function Lightbox({
   images,
   initialIndex,
   onClose,
+  label,
 }: {
   images: string[]
   initialIndex: number
   onClose: () => void
+  /** Project title, used to build descriptive image alt text. */
+  label?: string
 }) {
   const [index, setIndex] = useState(initialIndex)
 
@@ -84,7 +65,11 @@ function Lightbox({
       {/* Image */}
       <img
         src={images[index]}
-        alt={`Gallery image ${index + 1}`}
+        alt={
+          label
+            ? `${label} — full size image ${index + 1} of ${images.length}`
+            : `Gallery image ${index + 1} of ${images.length}`
+        }
         className="max-h-[85vh] max-w-[90vw] object-contain rounded-xl"
         onClick={(e) => e.stopPropagation()}
       />
@@ -120,41 +105,18 @@ function Lightbox({
   )
 }
 
-export function ProjectDetailClient() {
-  const { id } = useParams<{ id: string }>()
+export function ProjectDetailClient({
+  project,
+  authorName,
+  relatedProjects = [],
+}: {
+  /** Fully resolved on the server so crawlers receive complete HTML. */
+  project: Project
+  authorName?: string
+  relatedProjects?: Project[]
+}) {
   const router = useRouter()
-  const [project, setProject] = useState<Project | null>(null)
-  const [loading, setLoading] = useState(true)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/portfolio/${id}`)
-        if (!res.ok) { router.push('/portfolio'); return }
-        setProject(await res.json())
-      } catch {
-        router.push('/portfolio')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [id, router])
-
-  if (loading) {
-    return (
-      <PageShell>
-        <div className="flex flex-col gap-4 p-6">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="animate-pulse h-8 rounded-xl bg-muted" />
-          ))}
-        </div>
-      </PageShell>
-    )
-  }
-
-  if (!project) return null
 
   // Normalise gallery: prefer images[] over legacy image
   const gallery: string[] = project.images && project.images.length > 0
@@ -173,6 +135,7 @@ export function ProjectDetailClient() {
           images={gallery}
           initialIndex={lightboxIndex}
           onClose={() => setLightboxIndex(null)}
+          label={project.title}
         />
       )}
 
@@ -186,7 +149,8 @@ export function ProjectDetailClient() {
           <ArrowLeft size={16} />
         </button>
         <div>
-          <h1 className="font-bold text-base text-foreground leading-tight line-clamp-1">{project.title}</h1>
+          {/* Visual-only breadcrumb label — the real <h1> lives in the article below. */}
+          <p className="font-bold text-base text-foreground leading-tight line-clamp-1">{project.title}</p>
           <p className="text-xs text-muted-foreground capitalize">{project.category}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -227,7 +191,15 @@ export function ProjectDetailClient() {
           aria-label="Open image gallery"
           onKeyDown={(e) => e.key === 'Enter' && setLightboxIndex(0)}
         >
-          <img src={coverImage} alt={project.title} className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-500" />
+          <img
+            src={coverImage}
+            alt={`${project.title} — ${project.category} project cover image`}
+            width={1280}
+            height={720}
+            fetchPriority="high"
+            decoding="async"
+            className="w-full h-full object-cover hover:scale-[1.02] transition-transform duration-500"
+          />
         </div>
       ) : (
         <div
@@ -253,7 +225,15 @@ export function ProjectDetailClient() {
               )}
               aria-label={`View image ${i + 1}`}
             >
-              <img src={url} alt="" className="w-full h-full object-cover" />
+              <img
+                src={url}
+                alt={`${project.title} screenshot ${i + 1} of ${gallery.length}`}
+                width={64}
+                height={64}
+                loading="lazy"
+                decoding="async"
+                className="w-full h-full object-cover"
+              />
             </button>
           ))}
           <span className="shrink-0 flex items-center text-[11px] text-muted-foreground pl-1">
@@ -262,7 +242,7 @@ export function ProjectDetailClient() {
         </div>
       )}
 
-      <div className="px-5 py-6">
+      <article className="px-5 py-6" itemScope itemType="https://schema.org/CreativeWork">
         {/* Category + featured */}
         <div className="flex items-center gap-2 mb-3">
           <Link
@@ -279,19 +259,19 @@ export function ProjectDetailClient() {
           )}
         </div>
 
-        {/* Title */}
-        <h2 className="font-bold text-2xl text-foreground mb-3 text-pretty leading-snug">
+        {/* Title — the single, canonical <h1> for this page */}
+        <h1 className="font-bold text-2xl text-foreground mb-3 text-pretty leading-snug">
           {project.title}
-        </h2>
+        </h1>
 
         {/* Description */}
         <p className="text-sm text-muted-foreground leading-relaxed mb-6">{project.description}</p>
 
         {/* Results */}
-        <div className="rounded-2xl border border-border bg-card p-4 mb-6">
+        <section aria-labelledby="project-results" className="rounded-2xl border border-border bg-card p-4 mb-6">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp size={14} style={{ color: '#f4a295' }} />
-            <p className="text-sm font-bold text-foreground">Results</p>
+            <h2 id="project-results" className="text-sm font-bold text-foreground">Results</h2>
           </div>
           <div className="grid grid-cols-1 gap-2">
             {Object.entries(project.results).map(([key, value]) => (
@@ -304,22 +284,22 @@ export function ProjectDetailClient() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
 
         {/* Tech stack */}
-        <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Tech Stack</p>
-          <div className="flex flex-wrap gap-2">
+        <section aria-labelledby="project-tech" className="mb-6">
+          <h2 id="project-tech" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Tech Stack</h2>
+          <ul className="flex flex-wrap gap-2 list-none p-0 m-0">
             {project.tech.map((t) => (
-              <span
+              <li
                 key={t}
                 className="px-3 py-1.5 rounded-full text-xs font-medium border border-border bg-card text-foreground"
               >
                 {t}
-              </span>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
 
         {/* ── Rich content blocks ── */}
         {project.content && project.content.length > 0 && (
@@ -353,7 +333,9 @@ export function ProjectDetailClient() {
                     >
                       <img
                         src={block.url}
-                        alt={block.caption ?? ''}
+                        alt={block.caption || `${project.title} — project detail illustration`}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full object-cover max-h-80 hover:scale-[1.01] transition-transform duration-300"
                       />
                     </div>
@@ -397,7 +379,52 @@ export function ProjectDetailClient() {
             </a>
           )}
         </div>
-      </div>
+      </article>
+
+      {/* Related projects — internal linking strengthens topical relevance
+          and gives crawlers more paths into the portfolio. */}
+      {relatedProjects.length > 0 && (
+        <section aria-labelledby="related-projects" className="px-5 py-6 border-t border-border">
+          <h2 id="related-projects" className="font-bold text-base text-foreground mb-4">
+            More {project.category} projects
+          </h2>
+          <ul className="flex flex-col gap-3 list-none p-0 m-0">
+            {relatedProjects.slice(0, 4).map((related) => (
+              <li key={related.id}>
+                <Link
+                  href={`/portfolio/${related.id}`}
+                  prefetch
+                  className="flex items-center gap-3 p-3 rounded-2xl border border-border bg-card hover:border-[#f4a295]/40 transition-colors"
+                >
+                  <div className="w-14 h-14 rounded-xl overflow-hidden bg-muted shrink-0">
+                    {(related.images?.[0] ?? related.image) ? (
+                      <img
+                        src={related.images?.[0] ?? related.image}
+                        alt={`${related.title} project thumbnail`}
+                        width={56}
+                        height={56}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">
+                        {related.title.slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground line-clamp-1">{related.title}</h3>
+                    <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      {related.description}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </PageShell>
   )
 }
