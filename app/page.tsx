@@ -3,7 +3,8 @@ import { PageShell } from '@/components/page-shell'
 import { readFeedData, readSettingsData } from '@/lib/data'
 import { HomeClient } from '@/components/home-client'
 
-export const dynamic = 'force-dynamic'
+// Revalidate every 60 s so the feed stays fresh without blocking navigation.
+export const revalidate = 60
 
 export default async function HomePage() {
   const [feedData, settingsData] = await Promise.all([

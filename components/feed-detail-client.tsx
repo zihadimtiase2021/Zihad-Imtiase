@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import useSWR from 'swr'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   ArrowLeft, Share2,
@@ -9,108 +9,52 @@ import {
 } from 'lucide-react'
 import { PageShell } from '@/components/page-shell'
 import { PostInteractions } from '@/components/post-interactions'
+import type { FeedItem, Project } from '@/lib/types'
 
-interface FeedItemData {
-  id: string
-  type: string
-  title: string
-  excerpt: string
-  content: string
-  category: string
-  image?: string
-  media?: string[]
-  author: string
-  clientName?: string
-  clientRole?: string
-  clientImage?: string
-  date: string
-  likes: number
-  replies: number
-  rating?: number
-  tech?: string[]
-  link?: string
-  featured?: boolean
-  linkedProjectId?: string
-  pinned?: boolean
+interface FeedDetailClientProps {
+  initialItem: FeedItem
+  initialLinkedProject: Project | null
+  initialRelatedProjects: Project[]
 }
-
-interface Project {
-  id: string
-  title: string
-  category: string
-  description: string
-  tech: string[]
-  results: Record<string, string>
-  link?: string
-  image?: string
-  featured: boolean
-}
-
-interface RelatedProject extends Project {}
 
 const TYPE_META = {
   article: { label: 'Article', icon: BookOpen, color: '#f4a295' },
   testimonial: { label: 'Testimonial', icon: Quote, color: '#a8d5c2' },
   project: { label: 'Project', icon: Briefcase, color: '#9db8e8' },
+  post: { label: 'Post', icon: BookOpen, color: '#f4a295' },
 }
 
-export function FeedDetailClient() {
-  const { id } = useParams<{ id: string }>()
+const jsonFetcher = (url: string) => fetch(url).then((r) => r.json())
+
+export function FeedDetailClient({
+  initialItem,
+  initialLinkedProject,
+  initialRelatedProjects,
+}: FeedDetailClientProps) {
   const router = useRouter()
-  const [item, setItem] = useState<FeedItemData | null>(null)
-  const [linkedProject, setLinkedProject] = useState<Project | null>(null)
-  const [relatedProjects, setRelatedProjects] = useState<RelatedProject[]>([])
-  const [loading, setLoading] = useState(true)
+  const id = initialItem.id
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(`/api/feed/${id}`)
-        if (!res.ok) { router.push('/'); return }
-        const data: FeedItemData = await res.json()
-        setItem(data)
+  // SWR revalidates in the background but never blocks the initial render —
+  // `fallbackData` means the UI shows instantly with the server-fetched data.
+  const { data: item = initialItem } = useSWR<FeedItem>(
+    `/api/feed/${id}`,
+    jsonFetcher,
+    {
+      fallbackData: initialItem,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 60_000,
+    },
+  )
 
-        // fetch linked project if present
-        if (data.linkedProjectId) {
-          const pRes = await fetch(`/api/portfolio/${data.linkedProjectId}`)
-          if (pRes.ok) {
-            const project = await pRes.json()
-            setLinkedProject(project)
-
-            // fetch related projects by same category
-            const relRes = await fetch(`/api/portfolio/category/${project.category}?exclude=${data.linkedProjectId}`)
-            if (relRes.ok) {
-              const relData = await relRes.json()
-              setRelatedProjects(relData.projects || [])
-            }
-          }
-        }
-      } catch {
-        router.push('/')
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [id, router])
-
-  if (loading) {
-    return (
-      <PageShell>
-        <div className="flex flex-col gap-4 p-6">
-          {[1, 2, 3].map((n) => (
-            <div key={n} className="animate-pulse h-8 rounded-xl bg-muted" />
-          ))}
-        </div>
-      </PageShell>
-    )
-  }
-
-  if (!item) return null
-
-  const meta = TYPE_META[item.type as keyof typeof TYPE_META] ?? TYPE_META.article
+  const meta =
+    TYPE_META[item.type as keyof typeof TYPE_META] ?? TYPE_META.post
   const TypeIcon = meta.icon
-  const displayName = item.type === 'testimonial' ? (item.clientName ?? item.author) : item.author
+  const displayName =
+    item.type === 'testimonial' ? (item.clientName ?? item.author) : item.author
+
+  const linkedProject = initialLinkedProject
+  const relatedProjects = initialRelatedProjects
 
   return (
     <PageShell>
@@ -329,7 +273,7 @@ export function FeedDetailClient() {
         </div>
       )}
 
-      {/* Original linked project card — keep if user hasn't navigated yet */}
+      {/* Original linked project card — show when no related projects */}
       {linkedProject && relatedProjects.length === 0 && (
         <div className="px-5 pb-8">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
@@ -380,7 +324,6 @@ export function FeedDetailClient() {
           </Link>
         </div>
       )}
-      )
     </PageShell>
   )
 }

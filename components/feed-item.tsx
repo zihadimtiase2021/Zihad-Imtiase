@@ -242,15 +242,8 @@ export function FeedItem({
     </div>
   )
 
-  return (
-    <article
-      className={cn('px-4 py-5 border-b border-border transition-colors relative', pinned && 'bg-[#f4a295]/5', detailHref ? 'cursor-pointer hover:bg-muted/30' : '')}
-      onClick={detailHref ? () => router.push(detailHref) : undefined}
-      role={detailHref ? 'button' : undefined}
-      tabIndex={detailHref ? 0 : undefined}
-      onKeyDown={detailHref ? (e) => { if (e.key === 'Enter') router.push(detailHref) } : undefined}
-      aria-label={detailHref && title ? `Read full post: ${title}` : undefined}
-    >
+  const articleContent = (
+    <>
       {pinned && (
         <div className="flex items-center gap-1.5 mb-2 ml-[52px]">
           <Pin size={11} className="text-[#f4a295]" />
@@ -258,6 +251,34 @@ export function FeedItem({
         </div>
       )}
       {inner}
+    </>
+  )
+
+  if (detailHref) {
+    return (
+      <Link
+        href={detailHref}
+        prefetch={true}
+        className={cn('block px-4 py-5 border-b border-border transition-colors relative cursor-pointer hover:bg-muted/30', pinned && 'bg-[#f4a295]/5')}
+        aria-label={title ? `Read full post: ${title}` : undefined}
+        onClick={(e) => {
+          // If the click originated on an interactive child, prevent the outer
+          // Link from navigating so the child can handle it independently.
+          const target = e.target as HTMLElement
+          const interactive = target.closest('button, a[href], audio, video, input')
+          if (interactive && interactive !== e.currentTarget) {
+            e.preventDefault()
+          }
+        }}
+      >
+        {articleContent}
+      </Link>
+    )
+  }
+
+  return (
+    <article className={cn('px-4 py-5 border-b border-border transition-colors relative', pinned && 'bg-[#f4a295]/5')}>
+      {articleContent}
     </article>
   )
 }
