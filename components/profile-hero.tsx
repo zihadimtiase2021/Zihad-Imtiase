@@ -139,7 +139,7 @@ export function ProfileHero({
           isVideo(coverMedia) ? (
             <video src={coverMedia} autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover" />
           ) : (
-            <img src={coverMedia} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
+            <img src={coverMedia} alt={`${displayName} — cover photo`} className="absolute inset-0 w-full h-full object-cover" />
           )
         ) : (
           <div

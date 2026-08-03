@@ -58,7 +58,7 @@ export function FeedDetailClient({
 
   return (
     <PageShell>
-      {/* Top bar */}
+      {/* Top bar — visual chrome only; the canonical <h1> lives in the article body below */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
         <button
           onClick={() => router.back()}
@@ -68,7 +68,8 @@ export function FeedDetailClient({
           <ArrowLeft size={16} />
         </button>
         <div>
-          <h1 className="font-bold text-base text-foreground leading-tight line-clamp-1">{item.title}</h1>
+          {/* aria-hidden: this truncated label is purely decorative — the full title is the <h1> below */}
+          <p aria-hidden="true" className="font-bold text-base text-foreground leading-tight line-clamp-1">{item.title}</p>
           <p className="text-xs text-muted-foreground capitalize">{meta.label}</p>
         </div>
       </div>
@@ -102,10 +103,10 @@ export function FeedDetailClient({
           )}
         </div>
 
-        {/* Title */}
-        <h2 className="font-bold text-2xl text-foreground mb-4 text-pretty leading-snug">
+        {/* Title — the single canonical <h1> for this page */}
+        <h1 className="font-bold text-2xl text-foreground mb-4 text-pretty leading-snug">
           {item.title}
-        </h2>
+        </h1>
 
         {/* Star rating */}
         {item.type === 'testimonial' && item.rating && (
@@ -155,7 +156,12 @@ export function FeedDetailClient({
                 }
                 return (
                   <div key={i} className="rounded-2xl overflow-hidden bg-muted" style={{ aspectRatio: '16/9' }}>
-                    <img src={url} alt={item.title} className="w-full h-full object-cover" />
+                    <img
+                      src={url}
+                      alt={allMedia.length > 1 ? `${item.title} — image ${i + 1} of ${allMedia.length}` : item.title}
+                      className="w-full h-full object-cover"
+                      loading={i === 0 ? 'eager' : 'lazy'}
+                    />
                   </div>
                 )
               })}

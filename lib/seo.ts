@@ -155,6 +155,10 @@ export function personSchema(settings?: Partial<SiteSettings>): Json {
     .map((s) => s.url)
     .filter((u): u is string => Boolean(u && /^https?:\/\//i.test(u)))
 
+  // Derive occupational category from job title for richer entity disambiguation
+  const jobTitle = hero?.title || 'Frontend Developer & Webflow Specialist'
+  const occupationalCategory = jobTitle.split(/[,&\/]/)[0].trim() || undefined
+
   return prune({
     '@type': 'Person',
     '@id': PERSON_ID,
@@ -162,7 +166,8 @@ export function personSchema(settings?: Partial<SiteSettings>): Json {
     alternateName: hero?.nickname || undefined,
     url: SITE_URL,
     image: hero?.profileMedia ? absoluteUrl(hero.profileMedia) : undefined,
-    jobTitle: hero?.title || 'Frontend Developer & Webflow Specialist',
+    jobTitle,
+    occupationalCategory,
     description: toDescription(hero?.bio, 300) || undefined,
     email: contact?.email ? `mailto:${contact.email}` : undefined,
     telephone: contact?.phone || undefined,
@@ -215,6 +220,16 @@ export function profilePageSchema({
   title: string
   description: string
 }): Json {
+  // Only emit hasPart on the root homepage — not on /about (which IS a part)
+  const isHome = path === '/'
+  const hasPart = isHome
+    ? [
+        { '@type': 'WebPage', '@id': `${absoluteUrl('/about')}#profilepage`, name: 'About' },
+        { '@type': 'WebPage', '@id': `${absoluteUrl('/portfolio')}#collection`, name: 'Portfolio' },
+        { '@type': 'WebPage', '@id': `${absoluteUrl('/contact')}#contactpage`, name: 'Contact' },
+      ]
+    : undefined
+
   return prune({
     '@type': 'ProfilePage',
     '@id': `${absoluteUrl(path)}#profilepage`,
@@ -225,6 +240,7 @@ export function profilePageSchema({
     isPartOf: { '@id': WEBSITE_ID },
     about: { '@id': PERSON_ID },
     mainEntity: personSchema(settings),
+    ...(hasPart ? { hasPart } : {}),
   })
 }
 
