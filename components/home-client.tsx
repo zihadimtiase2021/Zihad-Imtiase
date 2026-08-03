@@ -5,7 +5,6 @@ import { useState, useCallback } from 'react'
 import { PageShell } from '@/components/page-shell'
 import { ProfileHero, type HeroData, type ContactData } from '@/components/profile-hero'
 import { FeedItem } from '@/components/feed-item'
-import { EditProfileModal } from '@/components/edit-profile-modal'
 import { useAdminStatus } from '@/hooks/use-admin-status'
 import type { FeedItem as FeedItemType } from '@/lib/data'
 import type { SiteSettings } from '@/lib/types'
@@ -24,7 +23,6 @@ export function HomeClient({ initialItems, heroData, contactData = {}, initialSe
 
   // Live settings state — drives real-time UI updates on save
   const [liveSettings, setLiveSettings] = useState<SiteSettings>(initialSettings)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   // Derive HeroData + ContactData from live settings
   const liveHeroData: HeroData = {
@@ -134,7 +132,7 @@ export function HomeClient({ initialItems, heroData, contactData = {}, initialSe
         onCoverDelete={() => persistMediaField({ coverMedia: '' })}
         onAvatarChange={(url) => persistMediaField({ profileMedia: url })}
         onAvatarDelete={() => persistMediaField({ profileMedia: '' })}
-        onEditProfile={() => setIsEditModalOpen(true)}
+        onEditProfile={() => router.push('/admin/edit-profile')}
       />
 
       {/* Project sub-category filter strip */}
@@ -194,15 +192,7 @@ export function HomeClient({ initialItems, heroData, contactData = {}, initialSe
         )}
       </section>
 
-      {/* Edit Profile Modal — admin only */}
-      {isAdmin && (
-        <EditProfileModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          settings={liveSettings}
-          onSaved={(updated) => setLiveSettings(updated)}
-        />
-      )}
+
     </PageShell>
   )
 }

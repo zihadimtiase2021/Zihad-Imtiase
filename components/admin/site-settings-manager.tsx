@@ -15,7 +15,7 @@ const EMPTY_SETTINGS: SiteSettings = {
   hero: {
     coverMedia: '', profileMedia: '', firstName: '', lastName: '', nickname: '',
     name: '', title: '', bio: '', tags: [], country: '', city: '', location: '',
-    joinDate: '', stats: [], hireMeLink: '',
+    joinDate: '', stats: [], hireMeLink: '', profileButtonText: '', profileButtonLink: '',
   },
   about: { media: [], introText: '', timeline: [], stack: [], values: [] },
   contact: { email: '', phone: '', whatsapp: '', address: '', shortText: '', contactHeading: '', contactSubHeading: '', socials: [] },
@@ -55,6 +55,8 @@ export function SiteSettingsManager() {
             joinDate: data.hero?.joinDate ?? '',
             stats: Array.isArray(data.hero?.stats) ? data.hero.stats : [],
             hireMeLink: data.hero?.hireMeLink ?? '',
+            profileButtonText: data.hero?.profileButtonText ?? '',
+            profileButtonLink: data.hero?.profileButtonLink ?? '',
           },
           about: {
             media: Array.isArray(data.about?.media) ? data.about.media : [],
