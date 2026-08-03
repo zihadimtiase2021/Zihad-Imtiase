@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
           resend.emails.send({
             from: fromAddress,
             to: [toAddress],
-            reply_to: submission.email,
+            replyTo: submission.email,
             subject: `New message from ${submission.name}${submission.service ? ` — ${submission.service}` : ''}`,
             html: ownerHtml(submission),
           }),
